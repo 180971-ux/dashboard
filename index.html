@@ -8,7 +8,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Dashboard">
-<meta name="theme-color" content="#1f3a5f">
+<meta name="theme-color" content="#6b3a5e">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@1,600&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
@@ -95,6 +97,35 @@ tfoot td{font-weight:700;border-bottom:0}
 .chip.done{background:#e7f5ec;border-color:#2e8b57;color:#2e8b57}
 .chatbar{display:flex;gap:8px;align-items:end}.chatbar textarea{flex:1;margin:0}
 .typing{opacity:.6;font-style:italic}
+/* ===== Opgepimpt ===== */
+:root{--bg:#f8f1f4;--card:#ffffff;--accent:#b4577f;--navy:#6b3a5e;--shadow:0 1px 2px rgba(107,58,94,.06),0 8px 22px rgba(107,58,94,.08);--r:18px}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#1a1218;--card:#251a23;--ink:#f3e9ef;--muted:#b39fac;--line:#3a2a36;--accent:#d77ea6;--shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25)}
+  input,select,textarea{background:#1f151c;color:var(--ink);border-color:var(--line)}
+  .spk{background:#3a2a36;color:var(--ink)}
+  .seg{background:#2c1f29}.seg button.on{background:#43303f;color:var(--ink)}
+  .msg.ai{background:#33242f}.chip{background:#251a23;border-color:#4a3644;color:var(--ink)}
+  #modal .box{background:var(--card)}
+}
+header{background:linear-gradient(120deg,#6b3a5e 0%,#a2557e 55%,#d98a9f 100%)}
+.card{box-shadow:var(--shadow);border-color:transparent}
+.hero{border-radius:20px;padding:20px 18px;margin-bottom:20px;color:#fff;
+  background:radial-gradient(120% 140% at 100% 0%,#f6c1b4 0%,rgba(246,193,180,0) 55%),radial-gradient(90% 120% at 0% 100%,#b9a3e3 0%,rgba(185,163,227,0) 60%),linear-gradient(135deg,#7a3f6a,#c0628a);box-shadow:var(--shadow)}
+.hero h2{margin:0;font-family:"Fraunces",Georgia,serif;font-style:italic;font-weight:600;font-size:30px;letter-spacing:.2px}
+.hero p{margin:4px 0 14px;opacity:.85;font-size:14px}
+.hero .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.hero .kpi{background:rgba(255,255,255,.14);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:12px;padding:8px 10px;font-size:12px;line-height:1.25}
+.hero .kpi b{display:block;font-size:18px}
+.cat h3{display:flex;align-items:center;gap:8px}
+.cat h3::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--catc,#2f6fb3)}
+.tile{border:0;box-shadow:var(--shadow);position:relative;transition:transform .12s ease,box-shadow .12s ease;min-height:132px}
+.tile:active{transform:scale(.97)}
+@media (hover:hover){.tile:hover{transform:translateY(-2px)}}
+.tile .ic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:24px;background:var(--tc-bg,#e8f0fa)}
+.tile::after{content:"›";position:absolute;right:14px;top:14px;font-size:22px;color:var(--muted);opacity:.6}
+.tile b{font-size:16px}
+button.b.sec{background:#f3e4ec;color:#5a2f4d}
+@media (prefers-color-scheme: dark){button.b.sec{background:#3a2a36;color:var(--ink)}}
 #print{display:none}
 @media print{
   header,main,#modal,#toast{display:none!important}
@@ -359,7 +390,7 @@ tfoot td{font-weight:700;border-bottom:0}
 <script>
 "use strict";
 /* ============ Config ============ */
-const APP_VERSION = "1.1.0";          // ophogen bij elke nieuwe versie
+const APP_VERSION = "1.2.0";          // ophogen bij elke nieuwe versie
 const APP_DATUM = "14-11-2026";
 const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
@@ -933,9 +964,9 @@ $("sKeyDel").onclick=()=>{ ls.del(AIK.key); $("sKey").value=""; toast("Sleutel g
 
 /* ============ Startscherm & categorieën ============ */
 const TOOLS = {
-  pgb:{ ic:"🕒", naam:"PGB uren", sub:()=>`Deze maand: ${num2(totals(todayStr().slice(0,7)).U)} uur` },
-  spaans:{ ic:"🇪🇸", naam:"Spaanse les", sub:()=>{ const d=dueWoorden().length; return woorden().length?(d?`${d} te herhalen`:"Alles herhaald ✓"):"Woordjes & gesprekken"; } },
-  assistent:{ ic:"💬", naam:"Assistent", sub:()=>"Vraag maar raak" }
+  pgb:{ ic:"🕒", kleur:"#c0628a", naam:"PGB uren", sub:()=>`Deze maand: ${num2(totals(todayStr().slice(0,7)).U)} uur` },
+  spaans:{ ic:"🇪🇸", kleur:"#e8846b", naam:"Spaanse les", sub:()=>{ const d=dueWoorden().length; return woorden().length?(d?`${d} te herhalen`:"Alles herhaald ✓"):"Woordjes & gesprekken"; } },
+  assistent:{ ic:"💬", kleur:"#8f7ad6", naam:"Assistent", sub:()=>"Vraag maar raak" }
 };
 const DEFAULT_CATS = [ {id:"c-livia",naam:"Livia",tools:["pgb"]}, {id:"c-persoonlijk",naam:"Persoonlijk",tools:["spaans","assistent"]} ];
 function layout(){
@@ -950,9 +981,13 @@ function layout(){
 }
 function saveLayout(cats){ upsertIn("dashboard","indeling",{id:"layout",cats}); }
 function renderHome(){
-  $("homeCats").innerHTML=layout().filter(c=>c.tools.length).map(c=>`<div class="cat"><h3>${esc(c.naam)}</h3><div class="tiles">${
+  const u=new Date().getHours(), groet=u<6?"Goedenacht":u<12?"Goedemorgen":u<18?"Goedemiddag":"Goedenavond";
+  const t=totals(todayStr().slice(0,7)), due=dueWoorden().length, rk=streak();
+  const hero=`<div class="hero"><h2>${groet}</h2><p>${(d=>d[0].toUpperCase()+d.slice(1))(new Date().toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long"}))}</p>
+    <div class="kpis"><div class="kpi"><b>${num2(t.U)}</b>uur deze maand</div><div class="kpi"><b>${due}</b>woorden herhalen</div><div class="kpi"><b>${rk}</b>${rk===1?"dag":"dagen"} Spaans op rij</div></div></div>`;
+  $("homeCats").innerHTML=hero+layout().filter(c=>c.tools.length).map(c=>`<div class="cat" style="--catc:${TOOLS[c.tools[0]].kleur}"><h3>${esc(c.naam)}</h3><div class="tiles">${
     c.tools.map(t=>{ let sub=""; try{ sub=TOOLS[t].sub(); }catch(e){}
-      return `<button class="tile" data-go="${t}"><span class="ic">${TOOLS[t].ic}</span><div><b>${esc(TOOLS[t].naam)}</b><br><small>${esc(sub)}</small></div></button>`; }).join("")
+      return `<button class="tile" data-go="${t}" style="--tc-bg:${TOOLS[t].kleur}22"><span class="ic">${TOOLS[t].ic}</span><div><b>${esc(TOOLS[t].naam)}</b><br><small>${esc(sub)}</small></div></button>`; }).join("")
   }</div></div>`).join("");
   $("homeCats").querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>location.hash=b.dataset.go);
   if($("indelingCard").style.display!=="none") renderIndeling();
