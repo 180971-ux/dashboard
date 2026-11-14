@@ -15,6 +15,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
 <script src="slot.js"></script>
+<script src="lessen.js"></script>
 <script src="pgb-gegevens.js"></script>
 <style>
 :root{
@@ -98,6 +99,9 @@ tfoot td{font-weight:700;border-bottom:0}
 .msg .nw{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px}
 .chip{border:1px solid #c9d6e6;background:#fff;border-radius:99px;padding:3px 9px;font-size:13px;cursor:pointer}
 .chip.done{background:#e7f5ec;border-color:#2e8b57;color:#2e8b57}
+.qopt{display:block;width:100%;text-align:left;margin-top:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:11px 14px;font:inherit;cursor:pointer}
+.qopt.goed{background:#e7f5ec;border-color:#2e8b57;color:#1f6b42}.qopt.fout{background:#fdecea;border-color:#c0392b;color:#8e2a20}
+.lesuitleg li{margin-bottom:4px}
 .profbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .pchips{display:flex;gap:6px;flex-wrap:wrap}
 .pchip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:6px 14px;font:inherit;font-size:14px;cursor:pointer}
@@ -262,7 +266,7 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
       <p class="muted small">Ieder profiel heeft eigen woorden, voortgang en reeks. Alles wordt samen in jouw OneDrive bewaard.</p>
     </div>
     <div class="seg" id="esTabs">
-      <button data-tab="oefen" class="on">Oefenen</button><button data-tab="woorden">Woorden</button><button data-tab="gesprek">Gesprek</button>
+      <button data-tab="oefen" class="on">Oefenen</button><button data-tab="lessen">Lessen</button><button data-tab="woorden">Woorden</button><button data-tab="gesprek">Gesprek</button>
     </div>
 
     <div id="es-oefen" class="estab">
@@ -296,6 +300,8 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
         <div class="actions" style="justify-content:center"><button class="b sec" id="fcStop">Stoppen</button></div>
       </div>
     </div>
+
+    <div id="es-lessen" class="estab" style="display:none"><div id="lesList"></div></div>
 
     <div id="es-woorden" class="estab" style="display:none">
       <div class="card">
@@ -423,7 +429,7 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
 <script>
 "use strict";
 /* ============ Config ============ */
-const APP_VERSION = "1.4.1";          // ophogen bij elke nieuwe versie
+const APP_VERSION = "1.5.0";          // ophogen bij elke nieuwe versie
 const APP_DATUM = "14-11-2026";
 const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
@@ -833,7 +839,7 @@ function renderProfielen(){
 }
 const zoekProf = id => state.spaans.profielen.find(x=>x.id===id);
 function renderSpaans(){
-  renderProfielen();
+  renderProfielen(); renderLessen();
   const due=dueWoorden().length;
   $("stDue").textContent=due; $("stTot").textContent=woorden().length; { const k=streak(); $("stStreak").textContent=k; $("stStreak").nextElementSibling.textContent=k===1?"dag op rij":"dagen op rij"; }
   const th=themas(), opts=`<option value="">Alle thema's</option>`+th.map(t=>`<option>${esc(t)}</option>`).join("");
@@ -896,6 +902,49 @@ $("copyGo").onclick=()=>{
   let k=0,dub=0; for(const w of woorden().filter(w=>!th||w.thema===th)){ if(addWoord(w.es,w.nl,w.thema,w.ex,naar)) k++; else dub++; }
   if(k) persist(); toast(`${k} woorden gekopieerd naar ${zoekProf(naar).naam}`+(dub?` · ${dub} stonden er al`:""));
 };
+
+// Lessen (lessen.js): uitleg, woorden in één keer toevoegen, en een meerkeuze-oefening
+let quiz=null; // {les, i, goed, fout:[]}
+function renderLessen(){
+  const L=window.LESSEN||[]; if(quiz) return;
+  $("lesList").innerHTML = !L.length ? `<p class="muted">Nog geen lessen.</p>` : L.map(l=>{
+    const inLijst=l.woorden.filter(([es])=>findWoord(es)).length;
+    return `<div class="card"><h2>${esc(l.titel)}</h2><p class="muted small" style="margin:-6px 0 8px">Les van ${esc(l.datum)} · ${l.woorden.length} woorden · ${l.oefening.length} oefenvragen</p>
+      <details><summary class="small">Uitleg</summary><ul class="lesuitleg small">${l.uitleg.map(u=>`<li>${esc(u)}</li>`).join("")}</ul></details>
+      <div class="actions">
+        <button class="b" data-oef="${l.id}">Oefening starten</button>
+        <button class="b sec" data-add="${l.id}" ${inLijst===l.woorden.length?"disabled":""}>${inLijst===l.woorden.length?"Woorden staan in je lijst ✓":`Woorden toevoegen (${l.woorden.length-inLijst})`}</button>
+      </div></div>`; }).join("");
+  $("lesList").querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{ const l=L.find(x=>x.id===b.dataset.add); let k=0;
+    for(const [es,nl] of l.woorden) if(addWoord(es,nl,l.titel)) k++; if(k) persist(); renderSpaans(); toast(`${k} woorden toegevoegd voor ${actProf().naam}`); });
+  $("lesList").querySelectorAll("[data-oef]").forEach(b=>b.onclick=()=>{ const l=L.find(x=>x.id===b.dataset.oef);
+    quiz={les:l, vragen:l.oefening.map((q,i)=>i).sort(()=>Math.random()-.5), i:0, goed:0, fout:[]}; toonVraag(); });
+}
+function toonVraag(){
+  const q=quiz, l=q.les;
+  if(q.i>=q.vragen.length){
+    const n=q.vragen.length;
+    $("lesList").innerHTML=`<div class="card" style="text-align:center"><h2>${esc(l.titel)}</h2><div class="fcq">${q.goed} / ${n}</div>
+      <p class="muted">${q.goed===n?"Alles goed, ¡muy bien!":q.goed>=n*.7?"Goed gedaan, nog even oefenen.":"Nog even oefenen, je kunt het!"}</p>
+      <div class="actions" style="justify-content:center">${q.fout.length?`<button class="b" id="qFout">Foute vragen opnieuw (${q.fout.length})</button>`:""}<button class="b sec" id="qKlaar">Terug naar lessen</button></div></div>`;
+    if($("qFout")) $("qFout").onclick=()=>{ quiz={les:l, vragen:q.fout.slice(), i:0, goed:0, fout:[]}; toonVraag(); };
+    $("qKlaar").onclick=()=>{ quiz=null; renderSpaans(); };
+    return;
+  }
+  const [zin,nl,opts,juist]=l.oefening[q.vragen[q.i]];
+  $("lesList").innerHTML=`<div class="card"><div class="muted small">${esc(l.titel)} · vraag ${q.i+1} van ${q.vragen.length}</div>
+    <div style="font-size:21px;font-weight:600;margin:14px 0 4px">${esc(zin).replace("___","<u>&nbsp;&nbsp;?&nbsp;&nbsp;</u>")}</div>
+    ${nl?`<div class="muted small">${esc(nl)}</div>`:""}
+    <div style="margin-top:10px">${opts.map((o,i)=>i).sort(()=>Math.random()-.5).map(i=>`<button class="qopt" data-i="${i}">${esc(opts[i])}</button>`).join("")}</div>
+    <div class="actions"><button class="b sec" id="qStop">Stoppen</button></div></div>`;
+  $("qStop").onclick=()=>{ quiz=null; renderSpaans(); };
+  $("lesList").querySelectorAll(".qopt").forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.i, ok=i===juist; $("lesList").querySelectorAll(".qopt").forEach(x=>{ x.onclick=null; if(+x.dataset.i===juist) x.classList.add("goed"); });
+    if(ok) q.goed++; else { b.classList.add("fout"); q.fout.push(q.vragen[q.i]); }
+    speak(zin.replace("___",opts[juist]).replace(/[¿?]/g,""));
+    setTimeout(()=>{ q.i++; toonVraag(); }, ok?1100:2200);
+  });
+}
 
 // Woorden beheren
 let wEdit=null;
