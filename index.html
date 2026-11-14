@@ -35,6 +35,11 @@ main{max-width:860px;margin:0 auto;padding:16px calc(env(safe-area-inset-right) 
   display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;text-align:left;font:inherit;color:inherit}
 .tile .ic{font-size:28px}.tile b{font-size:16px}.tile small{color:var(--muted)}
 .tile.soon{opacity:.6;border-style:dashed}
+.cat{margin-bottom:18px}
+.cat h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px 2px}
+.erow{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.erow input,.erow select{margin:0;flex:1}
+.erow .b{padding:8px 10px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:14px}
 .card h2{font-size:16px;margin:0 0 10px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
@@ -109,12 +114,22 @@ tfoot td{font-weight:700;border-bottom:0}
 <main>
   <!-- HOME -->
   <section class="view" id="v-home">
-    <div class="tiles">
-      <button class="tile" data-go="pgb"><span class="ic">🕒</span><div><b>PGB uren Livia</b><br><small id="tileSub">Uren &amp; maandfactuur</small></div></button>
-      <button class="tile" data-go="spaans"><span class="ic">🇪🇸</span><div><b>Spaanse les</b><br><small id="tileSpaans">Woordjes &amp; gesprekken</small></div></button>
-      <button class="tile" data-go="assistent"><span class="ic">💬</span><div><b>Assistent</b><br><small>Vraag maar raak</small></div></button>
-      <div class="tile soon"><span class="ic">＋</span><div><b>Nieuwe tool</b><br><small>Volgt</small></div></div>
+    <div id="homeCats"></div>
+    <div class="actions" style="justify-content:center;margin-top:18px">
+      <button class="b sec" id="btnIndeling">Indeling aanpassen</button>
     </div>
+    <div class="card" id="indelingCard" style="display:none;margin-top:12px">
+      <h2>Indeling</h2>
+      <div id="catEdit"></div>
+      <div class="row" style="margin-top:10px">
+        <label>Nieuwe categorie<input id="catNew" placeholder="bv. Huis, Financiën"></label>
+        <button class="b" id="catAdd">Toevoegen</button>
+      </div>
+      <h2 style="margin-top:16px">Tools</h2>
+      <div id="toolEdit"></div>
+      <div class="actions"><button class="b" id="indelingKlaar">Klaar</button></div>
+    </div>
+    <p class="muted small" style="text-align:center;margin-top:22px" id="verLabel"></p>
   </section>
 
   <!-- PGB -->
@@ -335,6 +350,7 @@ tfoot td{font-weight:700;border-bottom:0}
   </section>
 </main>
 
+<button id="updBar" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 16px);z-index:25;border:0;border-radius:99px;background:#2e8b57;color:#fff;font:inherit;font-size:14px;padding:10px 16px;box-shadow:0 2px 8px rgba(0,0,0,.2)"></button>
 <div id="print"></div>
 <div id="modal"><div class="box"><p id="mText"></p><div class="actions" style="justify-content:flex-end">
   <button class="b sec" id="mNo">Annuleren</button><button class="b" id="mYes">OK</button></div></div></div>
@@ -343,6 +359,8 @@ tfoot td{font-weight:700;border-bottom:0}
 <script>
 "use strict";
 /* ============ Config ============ */
+const APP_VERSION = "1.1.0";          // ophogen bij elke nieuwe versie
+const APP_DATUM = "14-11-2026";
 const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
 const DATA_FILE = "dashboard.json";
@@ -385,7 +403,7 @@ function ask(text,okLabel="OK",danger=false){
 
 /* ============ Data & samenvoegen ============ */
 // Elke tool heeft eigen verzamelingen. Een nieuwe tool = hier één regel erbij; samenvoegen en OneDrive gaan dan vanzelf mee.
-const SCHEMA = { pgb:["zorgverleners","uren","maanden"], spaans:["woorden","dagen"] };
+const SCHEMA = { pgb:["zorgverleners","uren","maanden"], spaans:["woorden","dagen"], dashboard:["indeling"] };
 const emptyState = () => fixState({});
 function fixState(s){
   s = s || {}; s.schema = 1;
@@ -913,6 +931,74 @@ $("sKeySave").onclick=()=>{ const k=$("sKey").value.trim(); if(k&&!k.startsWith(
 $("sKeyTest").onclick=async()=>{ $("sKeySave").click(); try{ const t=await callClaude({max_tokens:20,messages:[{role:"user",content:"Zeg alleen: ¡Hola!"}]}); toast("Werkt: "+t.trim()); }catch(e){ toast(e.message); } };
 $("sKeyDel").onclick=()=>{ ls.del(AIK.key); $("sKey").value=""; toast("Sleutel gewist"); };
 
+/* ============ Startscherm & categorieën ============ */
+const TOOLS = {
+  pgb:{ ic:"🕒", naam:"PGB uren", sub:()=>`Deze maand: ${num2(totals(todayStr().slice(0,7)).U)} uur` },
+  spaans:{ ic:"🇪🇸", naam:"Spaanse les", sub:()=>{ const d=dueWoorden().length; return woorden().length?(d?`${d} te herhalen`:"Alles herhaald ✓"):"Woordjes & gesprekken"; } },
+  assistent:{ ic:"💬", naam:"Assistent", sub:()=>"Vraag maar raak" }
+};
+const DEFAULT_CATS = [ {id:"c-livia",naam:"Livia",tools:["pgb"]}, {id:"c-persoonlijk",naam:"Persoonlijk",tools:["spaans","assistent"]} ];
+function layout(){
+  const rec=live(state.dashboard.indeling).find(x=>x.id==="layout");
+  const cats=JSON.parse(JSON.stringify(rec?.cats||DEFAULT_CATS));
+  // nieuwe tools die nog nergens staan komen onder "Overig"
+  const placed=new Set(cats.flatMap(c=>c.tools));
+  const rest=Object.keys(TOOLS).filter(t=>!placed.has(t));
+  if(rest.length){ let o=cats.find(c=>c.id==="c-overig"); if(!o){ o={id:"c-overig",naam:"Overig",tools:[]}; cats.push(o); } o.tools.push(...rest); }
+  for(const c of cats) c.tools=c.tools.filter(t=>TOOLS[t]);
+  return cats;
+}
+function saveLayout(cats){ upsertIn("dashboard","indeling",{id:"layout",cats}); }
+function renderHome(){
+  $("homeCats").innerHTML=layout().filter(c=>c.tools.length).map(c=>`<div class="cat"><h3>${esc(c.naam)}</h3><div class="tiles">${
+    c.tools.map(t=>{ let sub=""; try{ sub=TOOLS[t].sub(); }catch(e){}
+      return `<button class="tile" data-go="${t}"><span class="ic">${TOOLS[t].ic}</span><div><b>${esc(TOOLS[t].naam)}</b><br><small>${esc(sub)}</small></div></button>`; }).join("")
+  }</div></div>`).join("");
+  $("homeCats").querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>location.hash=b.dataset.go);
+  if($("indelingCard").style.display!=="none") renderIndeling();
+}
+function renderIndeling(){
+  const cats=layout();
+  $("catEdit").innerHTML=cats.map((c,i)=>`<div class="erow" data-i="${i}">
+    <input value="${esc(c.naam)}" data-k="naam">
+    <button class="b sec" data-k="up" ${i?"":"disabled"} aria-label="Omhoog">↑</button>
+    <button class="b sec" data-k="down" ${i<cats.length-1?"":"disabled"} aria-label="Omlaag">↓</button>
+    <button class="b sec" data-k="del" aria-label="Verwijderen">✕</button></div>`).join("");
+  $("catEdit").querySelectorAll(".erow").forEach(row=>{
+    const i=+row.dataset.i;
+    row.querySelector("[data-k=naam]").onchange=e=>{ const v=e.target.value.trim(); if(!v) return renderIndeling(); cats[i].naam=v; saveLayout(cats); renderHome(); };
+    row.querySelector("[data-k=up]").onclick=()=>{ [cats[i-1],cats[i]]=[cats[i],cats[i-1]]; saveLayout(cats); renderHome(); };
+    row.querySelector("[data-k=down]").onclick=()=>{ [cats[i+1],cats[i]]=[cats[i],cats[i+1]]; saveLayout(cats); renderHome(); };
+    row.querySelector("[data-k=del]").onclick=async()=>{
+      if(!await ask(`Categorie "${cats[i].naam}" verwijderen? De tools erin gaan naar Overig.`,"Verwijderen",true)) return;
+      cats.splice(i,1); saveLayout(cats); renderHome(); };
+  });
+  const opts=cats.map(c=>`<option value="${c.id}">${esc(c.naam)}</option>`).join("");
+  $("toolEdit").innerHTML=Object.keys(TOOLS).map(t=>`<div class="erow"><span style="flex:1">${TOOLS[t].ic} ${esc(TOOLS[t].naam)}</span>
+    <select data-t="${t}" style="flex:1">${opts}</select></div>`).join("");
+  $("toolEdit").querySelectorAll("select").forEach(sel=>{
+    const t=sel.dataset.t; sel.value=cats.find(c=>c.tools.includes(t))?.id||"";
+    sel.onchange=()=>{ for(const c of cats) c.tools=c.tools.filter(x=>x!==t); cats.find(c=>c.id===sel.value).tools.push(t); saveLayout(cats); renderHome(); };
+  });
+}
+$("btnIndeling").onclick=()=>{ $("indelingCard").style.display=""; $("btnIndeling").style.display="none"; renderIndeling(); $("indelingCard").scrollIntoView({behavior:"smooth"}); };
+$("indelingKlaar").onclick=()=>{ $("indelingCard").style.display="none"; $("btnIndeling").style.display=""; };
+$("catAdd").onclick=()=>{ const n=$("catNew").value.trim(); if(!n) return toast("Vul een naam in.");
+  const cats=layout(); cats.push({id:"c-"+uid(),naam:n,tools:[]}); saveLayout(cats); $("catNew").value=""; renderHome(); toast("Categorie toegevoegd; kies hieronder welke tools erin komen."); };
+
+/* ============ Versie & updates ============ */
+$("verLabel").textContent=`Versie ${APP_VERSION} · ${APP_DATUM}`;
+async function checkUpdate(){
+  if(!/^https?:/.test(location.protocol)||!navigator.onLine) return;
+  try{
+    const t=await (await fetch(location.pathname+"?v="+Date.now(),{cache:"no-store"})).text();
+    const m=t.match(/const APP_VERSION = "([^"]+)"/);
+    if(m && m[1]!==APP_VERSION){ $("updBar").textContent=`Nieuwe versie ${m[1]} beschikbaar · tik om bij te werken`; $("updBar").style.display=""; }
+  }catch(e){}
+}
+$("updBar").onclick=()=>location.replace(location.pathname+"?v="+Date.now()+location.hash);
+checkUpdate(); document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") checkUpdate(); });
+
 /* ============ Navigatie ============ */
 const VIEWS={home:"Privé dashboard",pgb:"PGB uren Livia",spaans:"Spaanse les",assistent:"Assistent",instellingen:"Instellingen"};
 function render(){
@@ -922,10 +1008,8 @@ function render(){
   if(view==="pgb") renderPgb();
   if(view==="spaans") renderSpaans();
   if(view==="instellingen"){ renderSettings(); renderAiSettings(); }
-  if(view==="home"){ const t=totals(todayStr().slice(0,7)); $("tileSub").textContent=`Deze maand: ${num2(t.U)} uur`;
-    const d=dueWoorden().length; $("tileSpaans").textContent = woorden().length ? (d?`${d} te herhalen`:"Alles herhaald ✓") : "Woordjes & gesprekken"; }
+  if(view==="home") renderHome();
 }
-document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>location.hash=b.dataset.go);
 $("back").onclick=()=>location.hash="home";
 $("btnSettings").onclick=()=>location.hash="instellingen";
 window.addEventListener("hashchange",render);
