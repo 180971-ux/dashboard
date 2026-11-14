@@ -14,6 +14,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<script src="pgb-gegevens.js"></script>
 <style>
 :root{
   --bg:#f4f6f9; --card:#fff; --ink:#1b2430; --muted:#6b7684; --line:#e3e8ef;
@@ -390,7 +391,7 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
 <script>
 "use strict";
 /* ============ Config ============ */
-const APP_VERSION = "1.2.0";          // ophogen bij elke nieuwe versie
+const APP_VERSION = "1.3.0";          // ophogen bij elke nieuwe versie
 const APP_DATUM = "14-11-2026";
 const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
@@ -963,8 +964,14 @@ $("sKeyTest").onclick=async()=>{ $("sKeySave").click(); try{ const t=await callC
 $("sKeyDel").onclick=()=>{ ls.del(AIK.key); $("sKey").value=""; toast("Sleutel gewist"); };
 
 /* ============ Startscherm & categorieën ============ */
+// Uren van de PGB-tool (pgb.html) voor deze maand: standaard uren per dag, plus afwijkingen.
+function pgbUren(){ try{ const x=JSON.parse(localStorage.getItem("pgb-livia-v1")||"null")||window.PGB_START||null; const st=x&&x.settings; if(!st||!st.stdUren) return null;
+  const n=new Date(), y=n.getFullYear(), m=n.getMonth(), k=y+"-"+String(m+1).padStart(2,"0"), days=(x.months&&x.months[k]&&x.months[k].days)||{};
+  let s=new Date(y,m,1); if(st.startdatum){ const p=st.startdatum.split("-").map(Number), sd=new Date(p[0],p[1]-1,p[2]); if(sd>s) s=sd; }
+  const e=new Date(y,m+1,0); let h=0; for(let d=new Date(s); d<=e; d.setDate(d.getDate()+1)){ const ds=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); const v=days[ds]; h+= v&&v.h!=null? v.h : +st.stdUren; }
+  return Math.round(h*100)/100; }catch(e){ return null; } }
 const TOOLS = {
-  pgb:{ ic:"🕒", kleur:"#c0628a", naam:"PGB uren", sub:()=>`Deze maand: ${num2(totals(todayStr().slice(0,7)).U)} uur` },
+  pgb:{ ic:"🕒", kleur:"#c0628a", naam:"PGB uren", url:"pgb.html", sub:()=>{ const u=pgbUren(); return u==null?"Uren & VGZ-declaratie":`Deze maand: ${num2(u)} uur`; } },
   spaans:{ ic:"🇪🇸", kleur:"#e8846b", naam:"Spaanse les", sub:()=>{ const d=dueWoorden().length; return woorden().length?(d?`${d} te herhalen`:"Alles herhaald ✓"):"Woordjes & gesprekken"; } },
   assistent:{ ic:"💬", kleur:"#8f7ad6", naam:"Assistent", sub:()=>"Vraag maar raak" }
 };
@@ -982,14 +989,14 @@ function layout(){
 function saveLayout(cats){ upsertIn("dashboard","indeling",{id:"layout",cats}); }
 function renderHome(){
   const u=new Date().getHours(), groet=u<6?"Goedenacht":u<12?"Goedemorgen":u<18?"Goedemiddag":"Goedenavond";
-  const t=totals(todayStr().slice(0,7)), due=dueWoorden().length, rk=streak();
+  const pu=pgbUren(), due=dueWoorden().length, rk=streak();
   const hero=`<div class="hero"><h2>${groet}</h2><p>${(d=>d[0].toUpperCase()+d.slice(1))(new Date().toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long"}))}</p>
-    <div class="kpis"><div class="kpi"><b>${num2(t.U)}</b>uur deze maand</div><div class="kpi"><b>${due}</b>woorden herhalen</div><div class="kpi"><b>${rk}</b>${rk===1?"dag":"dagen"} Spaans op rij</div></div></div>`;
+    <div class="kpis"><div class="kpi"><b>${pu==null?"–":num2(pu)}</b>uur PGB deze maand</div><div class="kpi"><b>${due}</b>woorden herhalen</div><div class="kpi"><b>${rk}</b>${rk===1?"dag":"dagen"} Spaans op rij</div></div></div>`;
   $("homeCats").innerHTML=hero+layout().filter(c=>c.tools.length).map(c=>`<div class="cat" style="--catc:${TOOLS[c.tools[0]].kleur}"><h3>${esc(c.naam)}</h3><div class="tiles">${
     c.tools.map(t=>{ let sub=""; try{ sub=TOOLS[t].sub(); }catch(e){}
       return `<button class="tile" data-go="${t}" style="--tc-bg:${TOOLS[t].kleur}22"><span class="ic">${TOOLS[t].ic}</span><div><b>${esc(TOOLS[t].naam)}</b><br><small>${esc(sub)}</small></div></button>`; }).join("")
   }</div></div>`).join("");
-  $("homeCats").querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>location.hash=b.dataset.go);
+  $("homeCats").querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{ const u=TOOLS[b.dataset.go]?.url; if(u) location.href=u; else location.hash=b.dataset.go; });
   if($("indelingCard").style.display!=="none") renderIndeling();
 }
 function renderIndeling(){
@@ -1035,6 +1042,7 @@ $("updBar").onclick=()=>location.replace(location.pathname+"?v="+Date.now()+loca
 checkUpdate(); document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") checkUpdate(); });
 
 /* ============ Navigatie ============ */
+if(location.hash==="#pgb") location.replace("pgb.html");
 const VIEWS={home:"Privé dashboard",pgb:"PGB uren Livia",spaans:"Spaanse les",assistent:"Assistent",instellingen:"Instellingen"};
 function render(){
   const v=(location.hash||"#home").slice(1); const view=VIEWS[v]?v:"home";
