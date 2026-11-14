@@ -14,6 +14,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<script src="slot.js"></script>
 <script src="pgb-gegevens.js"></script>
 <style>
 :root{
@@ -38,6 +39,7 @@ main{max-width:860px;margin:0 auto;padding:16px calc(env(safe-area-inset-right) 
   display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;text-align:left;font:inherit;color:inherit}
 .tile .ic{font-size:28px}.tile b{font-size:16px}.tile small{color:var(--muted)}
 .tile.soon{opacity:.6;border-style:dashed}
+.tile.soon::after{display:none}
 .cat{margin-bottom:18px}
 .cat h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px 2px}
 .erow{display:flex;gap:6px;align-items:center;margin-bottom:6px}
@@ -347,6 +349,19 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
   <!-- SETTINGS -->
   <section class="view" id="v-instellingen">
     <div class="card">
+      <h2>Beveiliging</h2>
+      <p id="slotStatus" class="muted"></p>
+      <label>Gebruikersnaam<input id="slotNu" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
+      <label>Wachtwoord (minstens 6 tekens)<input id="slotNp" type="password" autocomplete="new-password"></label>
+      <label>Herhaal wachtwoord<input id="slotNp2" type="password" autocomplete="new-password"></label>
+      <div class="actions" style="margin-top:10px">
+        <button class="b" id="slotSet">Vergrendeling instellen</button>
+        <button class="b sec" id="slotNow">Nu vergrendelen</button>
+        <button class="b sec" id="slotOff">Vergrendeling uitzetten</button>
+      </div>
+      <p class="small muted" style="margin:8px 0 0">Het dashboard vraagt dan op dit apparaat om je gebruikersnaam en wachtwoord, en vergrendelt na 15 minuten niets doen. Stel het per apparaat in (iPhone en pc apart).</p>
+    </div>
+    <div class="card">
       <h2>OneDrive</h2>
       <p id="odStatus" class="muted">Niet gekoppeld. Je gegevens staan nu alleen op dit apparaat.</p>
       <label>Application (client) ID van je app-registratie
@@ -391,7 +406,7 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
 <script>
 "use strict";
 /* ============ Config ============ */
-const APP_VERSION = "1.3.0";          // ophogen bij elke nieuwe versie
+const APP_VERSION = "1.4.0";          // ophogen bij elke nieuwe versie
 const APP_DATUM = "14-11-2026";
 const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
@@ -963,6 +978,19 @@ $("sKeySave").onclick=()=>{ const k=$("sKey").value.trim(); if(k&&!k.startsWith(
 $("sKeyTest").onclick=async()=>{ $("sKeySave").click(); try{ const t=await callClaude({max_tokens:20,messages:[{role:"user",content:"Zeg alleen: ¡Hola!"}]}); toast("Werkt: "+t.trim()); }catch(e){ toast(e.message); } };
 $("sKeyDel").onclick=()=>{ ls.del(AIK.key); $("sKey").value=""; toast("Sleutel gewist"); };
 
+/* ============ Beveiliging (slot.js) ============ */
+function renderSlot(){ if(!window.Slot) return; const on=Slot.actief();
+  $("slotStatus").textContent = on ? `Aan · gebruiker "${Slot.gebruiker()}". Vul hieronder een nieuw wachtwoord in om het te wijzigen.` : "Uit: het dashboard opent zonder wachtwoord.";
+  $("slotNow").style.display=on?"":"none"; $("slotOff").style.display=on?"":"none"; $("slotSet").textContent=on?"Wachtwoord wijzigen":"Vergrendeling instellen";
+  if(on && !$("slotNu").value) $("slotNu").value=Slot.gebruiker(); }
+$("slotSet").onclick=async()=>{ const u=$("slotNu").value, p=$("slotNp").value;
+  if(p!==$("slotNp2").value) return toast("De twee wachtwoorden zijn niet gelijk.");
+  try{ await Slot.instellen(u,p); $("slotNp").value=$("slotNp2").value=""; renderSlot(); toast("Vergrendeling staat aan."); }catch(e){ toast(e.message); } };
+$("slotNow").onclick=()=>Slot.vergrendel();
+$("slotOff").onclick=async()=>{ const p=$("slotNp").value; if(!p) return toast("Vul je huidige wachtwoord in om de vergrendeling uit te zetten.");
+  if(!(await Slot.controleer($("slotNu").value||Slot.gebruiker(),p))) return toast("Wachtwoord klopt niet.");
+  Slot.uitzetten(); $("slotNp").value=$("slotNp2").value=""; renderSlot(); toast("Vergrendeling staat uit."); };
+
 /* ============ Startscherm & categorieën ============ */
 // Uren van de PGB-tool (pgb.html) voor deze maand: standaard uren per dag, plus afwijkingen.
 function pgbUren(){ try{ const x=JSON.parse(localStorage.getItem("pgb-livia-v1")||"null")||window.PGB_START||null; const st=x&&x.settings; if(!st||!st.stdUren) return null;
@@ -975,7 +1003,7 @@ const TOOLS = {
   spaans:{ ic:"🇪🇸", kleur:"#e8846b", naam:"Spaanse les", sub:()=>{ const d=dueWoorden().length; return woorden().length?(d?`${d} te herhalen`:"Alles herhaald ✓"):"Woordjes & gesprekken"; } },
   assistent:{ ic:"💬", kleur:"#8f7ad6", naam:"Assistent", sub:()=>"Vraag maar raak" }
 };
-const DEFAULT_CATS = [ {id:"c-livia",naam:"Livia",tools:["pgb"]}, {id:"c-persoonlijk",naam:"Persoonlijk",tools:["spaans","assistent"]} ];
+const DEFAULT_CATS = [ {id:"c-livia",naam:"Livia",tools:["pgb"]}, {id:"c-anita",naam:"Anita",tools:[]}, {id:"c-edward",naam:"Edward",tools:["spaans","assistent"]} ];
 function layout(){
   const rec=live(state.dashboard.indeling).find(x=>x.id==="layout");
   const cats=JSON.parse(JSON.stringify(rec?.cats||DEFAULT_CATS));
@@ -992,7 +1020,7 @@ function renderHome(){
   const pu=pgbUren(), due=dueWoorden().length, rk=streak();
   const hero=`<div class="hero"><h2>${groet}</h2><p>${(d=>d[0].toUpperCase()+d.slice(1))(new Date().toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long"}))}</p>
     <div class="kpis"><div class="kpi"><b>${pu==null?"–":num2(pu)}</b>uur PGB deze maand</div><div class="kpi"><b>${due}</b>woorden herhalen</div><div class="kpi"><b>${rk}</b>${rk===1?"dag":"dagen"} Spaans op rij</div></div></div>`;
-  $("homeCats").innerHTML=hero+layout().filter(c=>c.tools.length).map(c=>`<div class="cat" style="--catc:${TOOLS[c.tools[0]].kleur}"><h3>${esc(c.naam)}</h3><div class="tiles">${
+  $("homeCats").innerHTML=hero+layout().filter(c=>c.tools.length||c.id!=="c-overig").map(c=>`<div class="cat" style="--catc:${c.tools.length?TOOLS[c.tools[0]].kleur:"#b39fac"}"><h3>${esc(c.naam)}</h3><div class="tiles">${c.tools.length?"":`<div class="tile soon" style="min-height:72px"><small>Nog geen tools. Verplaats er een via "Indeling aanpassen".</small></div>`}${
     c.tools.map(t=>{ let sub=""; try{ sub=TOOLS[t].sub(); }catch(e){}
       return `<button class="tile" data-go="${t}" style="--tc-bg:${TOOLS[t].kleur}22"><span class="ic">${TOOLS[t].ic}</span><div><b>${esc(TOOLS[t].naam)}</b><br><small>${esc(sub)}</small></div></button>`; }).join("")
   }</div></div>`).join("");
@@ -1047,10 +1075,10 @@ const VIEWS={home:"Privé dashboard",pgb:"PGB uren Livia",spaans:"Spaanse les",a
 function render(){
   const v=(location.hash||"#home").slice(1); const view=VIEWS[v]?v:"home";
   document.querySelectorAll(".view").forEach(s=>s.classList.toggle("active",s.id==="v-"+view));
-  $("title").textContent=VIEWS[view]; $("back").style.display=view==="home"?"none":"";
+  $("title").textContent=VIEWS[view]; $("back").style.display=view==="home"?"none":"inline-block";
   if(view==="pgb") renderPgb();
   if(view==="spaans") renderSpaans();
-  if(view==="instellingen"){ renderSettings(); renderAiSettings(); }
+  if(view==="instellingen"){ renderSettings(); renderAiSettings(); renderSlot(); }
   if(view==="home") renderHome();
 }
 $("back").onclick=()=>location.hash="home";
