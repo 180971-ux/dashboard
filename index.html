@@ -433,7 +433,7 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
 <script>
 "use strict";
 /* ============ Config ============ */
-const APP_VERSION = "1.5.7";          // ophogen bij elke nieuwe versie
+const APP_VERSION = "1.6.0";          // ophogen bij elke nieuwe versie
 const APP_DATUM = "14-11-2026";
 const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
@@ -1193,11 +1193,19 @@ async function checkUpdate(){
   try{
     const t=await (await fetch(location.pathname+"?v="+Date.now(),{cache:"no-store"})).text();
     const m=t.match(/const APP_VERSION = "([^"]+)"/);
-    if(m && m[1]!==APP_VERSION){ $("updBar").textContent=`Nieuwe versie ${m[1]} beschikbaar · tik om bij te werken`; $("updBar").style.display=""; }
+    if(m && m[1]!==APP_VERSION){
+      // Automatisch bijwerken, behalve als je net iets aan het invullen bent; dan de groene balk.
+      const a=document.activeElement, bezig=(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))||$("modal").classList.contains("show");
+      let poging={}; try{ poging=JSON.parse(sessionStorage.getItem("pd-upd")||"{}"); }catch(e){}
+      const recent=poging.v===m[1]&&Date.now()-poging.t<10*60*1000; // niet blijven herladen als de site nog de oude versie geeft
+      if(!bezig&&!recent){ try{ sessionStorage.setItem("pd-upd",JSON.stringify({v:m[1],t:Date.now()})); }catch(e){}
+        toast(`Bijwerken naar versie ${m[1]}…`); setTimeout(()=>location.replace(location.pathname+"?v="+Date.now()+location.hash),700); return; }
+      $("updBar").textContent=`Nieuwe versie ${m[1]} beschikbaar · tik om bij te werken`; $("updBar").style.display=""; }
   }catch(e){}
 }
 $("updBar").onclick=()=>location.replace(location.pathname+"?v="+Date.now()+location.hash);
 checkUpdate(); document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") checkUpdate(); });
+setInterval(()=>{ if(document.visibilityState==="visible") checkUpdate(); },30*60*1000);
 
 /* ============ Navigatie ============ */
 if(location.hash==="#pgb") location.replace("pgb.html");
