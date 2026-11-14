@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privé dashboard</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dashboard">
+<meta name="theme-color" content="#1f3a5f">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<style>
+:root{
+  --bg:#f4f6f9; --card:#fff; --ink:#1b2430; --muted:#6b7684; --line:#e3e8ef;
+  --navy:#1f3a5f; --accent:#2f6fb3; --ok:#2e8b57; --warn:#c77d12; --bad:#c0392b;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+header{position:sticky;top:0;z-index:5;background:var(--navy);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 10px) calc(env(safe-area-inset-right) + 16px) 10px calc(env(safe-area-inset-left) + 16px);
+  display:flex;align-items:center;gap:10px}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:10px;padding:8px 10px;font-size:15px}
+#back{display:none}
+.pill{font-size:12px;padding:4px 8px;border-radius:99px;background:rgba(255,255,255,.18);white-space:nowrap}
+.pill.ok{background:#2e8b57}.pill.warn{background:#c77d12}.pill.bad{background:#c0392b}
+main{max-width:860px;margin:0 auto;padding:16px calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 40px) calc(env(safe-area-inset-left) + 14px)}
+.view{display:none}.view.active{display:block}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.tile{background:var(--card);border-radius:var(--r);padding:16px;min-height:120px;border:1px solid var(--line);
+  display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.tile .ic{font-size:28px}.tile b{font-size:16px}.tile small{color:var(--muted)}
+.tile.soon{opacity:.6;border-style:dashed}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:14px}
+.card h2{font-size:16px;margin:0 0 10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.row>label{flex:1 1 120px}
+label{display:block;font-size:13px;color:var(--muted)}
+input,select,textarea{width:100%;font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);margin-top:3px}
+button.b{font:inherit;font-size:15px;border:0;border-radius:10px;padding:10px 14px;background:var(--accent);color:#fff;cursor:pointer}
+button.b.sec{background:#e9eef5;color:var(--ink)}
+button.b.warn{background:var(--warn)}button.b.bad{background:var(--bad)}
+button.b:disabled{opacity:.45}
+.monthbar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.monthbar h2{flex:1;text-align:center;margin:0;font-size:18px;text-transform:capitalize}
+.badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:#e9eef5;color:var(--muted)}
+.badge.closed{background:#fdecea;color:var(--bad)}.badge.open{background:#e7f5ec;color:var(--ok)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px}
+td.n,th.n{text-align:right;white-space:nowrap}
+tr.click{cursor:pointer}
+tfoot td{font-weight:700;border-bottom:0}
+.muted{color:var(--muted)}.small{font-size:13px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:#f1f4f8;padding:6px 8px;border-radius:8px;word-break:break-all;display:block;margin-top:4px}
+#modal{position:fixed;inset:0;background:rgba(10,20,35,.45);display:none;align-items:center;justify-content:center;z-index:20;padding:20px}
+#modal.show{display:flex}
+#modal .box{background:#fff;border-radius:16px;max-width:420px;width:100%;padding:18px}
+#modal .box p{margin:0 0 14px}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translateX(-50%);background:#1b2430;color:#fff;
+  padding:10px 14px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30;max-width:90vw}
+#toast.show{opacity:1}
+.seg{display:flex;background:#e3e8ef;border-radius:12px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:none;font:inherit;font-size:15px;padding:8px;border-radius:10px;color:var(--muted)}
+.seg button.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.stats div{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:10px;text-align:center}
+.stats b{display:block;font-size:24px}.stats span{font-size:12px;color:var(--muted)}
+.flash{text-align:center;padding:22px 14px}
+.fcq{font-size:28px;font-weight:600;margin:18px 0 10px}
+.fca{font-size:22px;color:var(--accent);margin-bottom:10px}
+.spk{border:0;background:#eef3f9;border-radius:99px;font-size:16px;padding:4px 8px;vertical-align:middle;cursor:pointer}
+.grades{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+.grades button{border:0;border-radius:10px;padding:10px 4px;font:inherit;font-size:14px;color:#fff;cursor:pointer}
+.grades small{display:block;font-size:11px;opacity:.85}
+.g0{background:#c0392b}.g1{background:#c77d12}.g2{background:#2e8b57}.g3{background:#2f6fb3}
+.chat{max-height:55vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.msg{max-width:88%;padding:9px 12px;border-radius:14px;word-wrap:break-word}
+.msg.me,.msg.plain{white-space:pre-wrap}
+.msg.me{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.msg.ai{align-self:flex-start;background:#eef3f9;border-bottom-left-radius:4px}
+.msg .corr{margin-top:6px;padding-top:6px;border-top:1px solid #d5dee9;font-size:13px;color:#7a4b00}
+.msg .nw{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px}
+.chip{border:1px solid #c9d6e6;background:#fff;border-radius:99px;padding:3px 9px;font-size:13px;cursor:pointer}
+.chip.done{background:#e7f5ec;border-color:#2e8b57;color:#2e8b57}
+.chatbar{display:flex;gap:8px;align-items:end}.chatbar textarea{flex:1;margin:0}
+.typing{opacity:.6;font-style:italic}
+#print{display:none}
+@media print{
+  header,main,#modal,#toast{display:none!important}
+  #print{display:block;padding:10mm;font-size:12pt}
+  #print table{font-size:11pt}
+}
+</style>
+</head>
+<body>
+<header>
+  <button id="back" aria-label="Terug">‹ Terug</button>
+  <h1 id="title">Privé dashboard</h1>
+  <span id="sync" class="pill">Lokaal</span>
+  <button id="btnSettings" aria-label="Instellingen">⚙︎</button>
+</header>
+
+<main>
+  <!-- HOME -->
+  <section class="view" id="v-home">
+    <div class="tiles">
+      <button class="tile" data-go="pgb"><span class="ic">🕒</span><div><b>PGB uren Livia</b><br><small id="tileSub">Uren &amp; maandfactuur</small></div></button>
+      <button class="tile" data-go="spaans"><span class="ic">🇪🇸</span><div><b>Spaanse les</b><br><small id="tileSpaans">Woordjes &amp; gesprekken</small></div></button>
+      <button class="tile" data-go="assistent"><span class="ic">💬</span><div><b>Assistent</b><br><small>Vraag maar raak</small></div></button>
+      <div class="tile soon"><span class="ic">＋</span><div><b>Nieuwe tool</b><br><small>Volgt</small></div></div>
+    </div>
+  </section>
+
+  <!-- PGB -->
+  <section class="view" id="v-pgb">
+    <div class="monthbar">
+      <button class="b sec" id="mPrev" aria-label="Vorige maand">‹</button>
+      <h2 id="mLabel"></h2>
+      <button class="b sec" id="mNext" aria-label="Volgende maand">›</button>
+    </div>
+
+    <div class="card" id="entryCard">
+      <h2 id="entryTitle">Uren invoeren</h2>
+      <div class="row">
+        <label>Datum<input type="date" id="fDatum"></label>
+        <label>Zorgverlener<select id="fZv"></select></label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>Begin<input type="time" id="fBegin" step="300"></label>
+        <label>Eind<input type="time" id="fEind" step="300"></label>
+        <label>Pauze (min)<input type="number" id="fPauze" min="0" step="5" inputmode="numeric" value="0"></label>
+      </div>
+      <label style="margin-top:8px">Opmerking<input id="fOpm" placeholder="Optioneel"></label>
+      <div class="actions">
+        <button class="b" id="fSave">Toevoegen</button>
+        <button class="b sec" id="fCancel" style="display:none">Annuleren</button>
+        <button class="b bad" id="fDelete" style="display:none">Verwijderen</button>
+        <span class="muted small" id="fCalc" style="align-self:center"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Deze maand <span id="mBadge" class="badge"></span></h2>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Datum</th><th>Zorgverlener</th><th>Tijd</th><th class="n">Uren</th><th class="n">Bedrag</th></tr></thead>
+        <tbody id="tUren"></tbody>
+      </table>
+      </div>
+      <p class="muted small" id="tLeeg"></p>
+    </div>
+
+    <div class="card">
+      <h2>Totaal per zorgverlener</h2>
+      <table>
+        <thead><tr><th>Zorgverlener</th><th class="n">Uren</th><th class="n">Tarief</th><th class="n">Bedrag</th></tr></thead>
+        <tbody id="tTot"></tbody>
+        <tfoot><tr><td>Totaal</td><td class="n" id="totU"></td><td></td><td class="n" id="totB"></td></tr></tfoot>
+      </table>
+      <div class="actions">
+        <button class="b warn" id="mClose">Maand afsluiten</button>
+        <button class="b sec" id="mReopen" style="display:none">Heropenen</button>
+        <button class="b sec" id="mPrint">Overzicht afdrukken / pdf</button>
+        <button class="b sec" id="mCsv">Exporteer naar OneDrive (CSV)</button>
+      </div>
+      <p class="muted small">De factuur-pdf krijgt dezelfde opmaak als jullie huidige factuur zodra ik een voorbeeld heb. Tot die tijd is dit een voorlopig overzicht.</p>
+    </div>
+
+    <div class="card">
+      <h2>Zorgverleners</h2>
+      <table>
+        <thead><tr><th>Naam</th><th class="n">Uurtarief</th><th></th></tr></thead>
+        <tbody id="tZv"></tbody>
+      </table>
+      <div class="row" style="margin-top:10px">
+        <label>Naam<input id="zNaam"></label>
+        <label>Uurtarief (€)<input id="zTarief" type="text" inputmode="decimal" placeholder="0,00"></label>
+        <button class="b" id="zAdd">Opslaan</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ASSISTENT -->
+  <section class="view" id="v-assistent">
+    <div class="card">
+      <div class="chat" id="aLog"><p class="muted small">Stel een vraag. Basisversie: we breiden hem later uit met wat je wilt.</p></div>
+      <div class="chatbar">
+        <textarea id="aIn" rows="2" placeholder="Typ je vraag…"></textarea>
+        <button class="b" id="aSend">Stuur</button>
+      </div>
+      <div class="actions"><button class="b sec" id="aClear">Nieuw gesprek</button></div>
+    </div>
+  </section>
+
+  <!-- SPAANS -->
+  <section class="view" id="v-spaans">
+    <div class="seg" id="esTabs">
+      <button data-tab="oefen" class="on">Oefenen</button><button data-tab="woorden">Woorden</button><button data-tab="gesprek">Gesprek</button>
+    </div>
+
+    <div id="es-oefen" class="estab">
+      <div class="stats">
+        <div><b id="stDue">0</b><span>te herhalen</span></div>
+        <div><b id="stTot">0</b><span>woorden</span></div>
+        <div><b id="stStreak">0</b><span>dagen op rij</span></div>
+      </div>
+      <div class="card" id="esStart">
+        <label>Richting<select id="esDir">
+          <option value="mix">Door elkaar</option><option value="es">Spaans → Nederlands</option><option value="nl">Nederlands → Spaans</option>
+        </select></label>
+        <label style="margin-top:8px">Thema<select id="esThemaOef"></select></label>
+        <div class="actions"><button class="b" id="esGo">Start oefenen</button><button class="b sec" id="esExtra">Extra oefenen (alles)</button></div>
+        <p class="muted small" id="esStartInfo"></p>
+      </div>
+      <div class="card flash" id="esCard" style="display:none">
+        <div class="muted small" id="fcCount"></div>
+        <div class="fcq"><span id="fcQ"></span> <button class="spk" id="fcSpkQ" aria-label="Uitspreken">🔊</button></div>
+        <div class="fca" id="fcA" style="display:none"><span id="fcAns"></span> <button class="spk" id="fcSpkA" aria-label="Uitspreken">🔊</button>
+          <div class="muted small" id="fcEx"></div></div>
+        <div class="actions" style="justify-content:center">
+          <button class="b" id="fcShow">Toon antwoord</button>
+        </div>
+        <div class="grades" id="fcGrades" style="display:none">
+          <button data-g="0" class="g0">Opnieuw<small id="gh0"></small></button>
+          <button data-g="1" class="g1">Moeilijk<small id="gh1"></small></button>
+          <button data-g="2" class="g2">Goed<small id="gh2"></small></button>
+          <button data-g="3" class="g3">Makkelijk<small id="gh3"></small></button>
+        </div>
+        <div class="actions" style="justify-content:center"><button class="b sec" id="fcStop">Stoppen</button></div>
+      </div>
+    </div>
+
+    <div id="es-woorden" class="estab" style="display:none">
+      <div class="card">
+        <h2 id="wTitle">Woord toevoegen</h2>
+        <div class="row">
+          <label>Spaans<input id="wEs" autocapitalize="off" lang="es"></label>
+          <label>Nederlands<input id="wNl"></label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <label>Thema<input id="wThema" list="themaList" placeholder="bv. restaurant"></label>
+          <label>Voorbeeldzin<input id="wEx" lang="es" placeholder="Optioneel"></label>
+        </div>
+        <datalist id="themaList"></datalist>
+        <div class="actions"><button class="b" id="wSave">Opslaan</button><button class="b sec" id="wCancel" style="display:none">Annuleren</button><button class="b bad" id="wDel" style="display:none">Verwijderen</button></div>
+      </div>
+      <div class="card">
+        <h2>Lijst laten maken door AI</h2>
+        <div class="row">
+          <label>Onderwerp<input id="genTopic" placeholder="bv. op het vliegveld"></label>
+          <label style="flex:0 1 90px">Aantal<input id="genN" type="number" min="5" max="40" value="15" inputmode="numeric"></label>
+          <label style="flex:0 1 90px">Niveau<select id="genLvl"><option>A1</option><option selected>A2</option><option>B1</option><option>B2</option></select></label>
+        </div>
+        <div class="actions"><button class="b" id="genGo">Maak lijst</button></div>
+        <div id="genOut"></div>
+      </div>
+      <div class="card">
+        <h2>Lijst plakken</h2>
+        <p class="muted small" style="margin:0 0 6px">Eén woord per regel: <i>hola = hallo</i> (ook ; of tab werkt). Het thema hieronder krijgen ze allemaal.</p>
+        <textarea id="bulkIn" rows="4" placeholder="el perro = de hond&#10;la casa = het huis"></textarea>
+        <div class="row" style="margin-top:8px"><label>Thema<input id="bulkThema" list="themaList"></label><button class="b" id="bulkGo">Importeer</button></div>
+      </div>
+      <div class="card">
+        <div class="row"><label>Zoeken<input id="wSearch" type="search"></label><label>Thema<select id="wFilter"></select></label></div>
+        <div style="overflow-x:auto;margin-top:8px"><table>
+          <thead><tr><th>Spaans</th><th>Nederlands</th><th class="n">Volgende</th></tr></thead>
+          <tbody id="wList"></tbody>
+        </table></div>
+        <p class="muted small" id="wCount"></p>
+      </div>
+    </div>
+
+    <div id="es-gesprek" class="estab" style="display:none">
+      <div class="card">
+        <div class="row">
+          <label style="flex:0 1 90px">Niveau<select id="gLvl"><option>A1</option><option selected>A2</option><option>B1</option><option>B2</option></select></label>
+          <label>Situatie<input id="gScen" placeholder="bv. eten bestellen in een tapasbar"></label>
+        </div>
+        <label style="margin-top:8px;display:flex;gap:8px;align-items:center"><input type="checkbox" id="gUseWords" checked style="width:auto;margin:0"> Verwerk mijn oefenwoorden in het gesprek</label>
+        <div class="actions"><button class="b" id="gStart">Start gesprek</button></div>
+      </div>
+      <div class="card">
+        <div class="chat" id="gLog"><p class="muted small">Start een gesprek. Schrijf of spreek in het Spaans; je krijgt correcties in het Nederlands en nieuwe woorden die je met één tik bewaart.</p></div>
+        <div class="chatbar">
+          <button class="b sec" id="gMic" style="display:none" aria-label="Inspreken">🎤</button>
+          <textarea id="gIn" rows="2" lang="es" placeholder="Escribe en español…"></textarea>
+          <button class="b" id="gSend">Stuur</button>
+        </div>
+        <div class="actions"><button class="b sec" id="gHint">Help, wat moet ik zeggen?</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="view" id="v-instellingen">
+    <div class="card">
+      <h2>OneDrive</h2>
+      <p id="odStatus" class="muted">Niet gekoppeld. Je gegevens staan nu alleen op dit apparaat.</p>
+      <label>Application (client) ID van je app-registratie
+        <input id="sClient" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </label>
+      <p class="small muted" style="margin:8px 0 0">Redirect-URI om bij Microsoft in te vullen (platform: Single-page application):
+        <span class="code" id="sRedirect"></span></p>
+      <div class="actions">
+        <button class="b" id="sLogin">Koppelen met OneDrive</button>
+        <button class="b sec" id="sSync">Nu synchroniseren</button>
+        <button class="b sec" id="sLogout">Ontkoppelen</button>
+      </div>
+      <p class="small muted">De app krijgt alleen toegang tot zijn eigen map in je OneDrive (Apps › naam van je app). De rest van je OneDrive blijft dicht.</p>
+    </div>
+    <div class="card">
+      <h2>AI (Spaans en assistent)</h2>
+      <label>Anthropic API-sleutel<input id="sKey" type="password" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <label style="margin-top:8px">Model<select id="sModel">
+        <option value="claude-sonnet-5-5">Claude Sonnet (beste balans)</option>
+        <option value="claude-haiku-5-5">Claude Haiku (snelst, goedkoopst)</option>
+      </select></label>
+      <div class="actions"><button class="b" id="sKeySave">Opslaan</button><button class="b sec" id="sKeyTest">Test</button><button class="b sec" id="sKeyDel">Wis sleutel</button></div>
+      <p class="small muted">De sleutel blijft alleen op dit apparaat en gaat niet naar OneDrive. Aanmaken op console.anthropic.com; stel daar een maandlimiet in.</p>
+    </div>
+    <div class="card">
+      <h2>Back-up</h2>
+      <div class="actions">
+        <button class="b sec" id="sCopy">Kopieer alle gegevens (JSON)</button>
+      </div>
+      <label style="margin-top:10px">Gegevens terugzetten (plak JSON)<textarea id="sImport" rows="3"></textarea></label>
+      <div class="actions"><button class="b sec" id="sImportBtn">Terugzetten</button></div>
+    </div>
+  </section>
+</main>
+
+<div id="print"></div>
+<div id="modal"><div class="box"><p id="mText"></p><div class="actions" style="justify-content:flex-end">
+  <button class="b sec" id="mNo">Annuleren</button><button class="b" id="mYes">OK</button></div></div></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ============ Config ============ */
+const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
+const SCOPES = ["Files.ReadWrite.AppFolder"];
+const DATA_FILE = "dashboard.json";
+const LS = { state:"pd-state", dirty:"pd-dirty", client:"pd-client", month:"pd-month" };
+
+/* ============ Helpers ============ */
+const $ = id => document.getElementById(id);
+const ls = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
+  del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+};
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+const nowIso = () => new Date().toISOString();
+const eur = n => new Intl.NumberFormat("nl-NL",{style:"currency",currency:"EUR"}).format(n||0);
+const num2 = n => new Intl.NumberFormat("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2,"0");
+const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const fmtDate = s => { const [y,m,d]=s.split("-"); return `${d}-${m}-${y}`; };
+const monthLabel = ym => { const [y,m]=ym.split("-").map(Number); return new Date(y,m-1,1).toLocaleDateString("nl-NL",{month:"long",year:"numeric"}); };
+const shiftMonth = (ym,k) => { const [y,m]=ym.split("-").map(Number); const d=new Date(y,m-1+k,1); return `${d.getFullYear()}-${pad(d.getMonth()+1)}`; };
+function parseBedrag(v){ v=String(v).trim(); if(v.includes(",")) v=v.replace(/\./g,"").replace(",","."); return parseFloat(v); }
+function hours(begin,eind,pauze){
+  if(!begin||!eind) return 0;
+  const [bh,bm]=begin.split(":").map(Number), [eh,em]=eind.split(":").map(Number);
+  let min=(eh*60+em)-(bh*60+bm); if(min<=0) min+=1440;         // over middernacht
+  min-=Number(pauze)||0;
+  return Math.max(0,Math.round(min/60*100)/100);
+}
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove("show"),2600); }
+function ask(text,okLabel="OK",danger=false){
+  return new Promise(res=>{
+    $("mText").textContent=text; $("mYes").textContent=okLabel;
+    $("mYes").className="b"+(danger?" bad":""); $("modal").classList.add("show");
+    const done=v=>{ $("modal").classList.remove("show"); $("mYes").onclick=$("mNo").onclick=null; res(v); };
+    $("mYes").onclick=()=>done(true); $("mNo").onclick=()=>done(false);
+  });
+}
+
+/* ============ Data & samenvoegen ============ */
+// Elke tool heeft eigen verzamelingen. Een nieuwe tool = hier één regel erbij; samenvoegen en OneDrive gaan dan vanzelf mee.
+const SCHEMA = { pgb:["zorgverleners","uren","maanden"], spaans:["woorden","dagen"] };
+const emptyState = () => fixState({});
+function fixState(s){
+  s = s || {}; s.schema = 1;
+  for(const [tool,colls] of Object.entries(SCHEMA)){ s[tool] = s[tool] || {}; for(const c of colls) s[tool][c] = s[tool][c] || []; }
+  return s;
+}
+let state = (()=>{ try{ return fixState(JSON.parse(ls.get(LS.state))); }catch(e){ return emptyState(); } })();
+const live = arr => arr.filter(x=>!x.deleted);
+
+// Records samenvoegen op id; de nieuwste updatedAt wint. Verwijderen = markeren (deleted), zodat het ook op andere apparaten verdwijnt.
+function mergeArr(a=[],b=[]){
+  const m=new Map(); for(const x of a) m.set(x.id,x);
+  for(const y of b){ const x=m.get(y.id); if(!x || (y.updatedAt||"")>(x.updatedAt||"")) m.set(y.id,y); }
+  return [...m.values()];
+}
+function mergeState(a,b){
+  if(!b) return fixState(a); if(!a) return fixState(b);
+  a=fixState(a); b=fixState(b); const out=fixState({});
+  for(const tool of new Set([...Object.keys(a),...Object.keys(b)])){
+    if(tool==="schema") continue;
+    out[tool]=out[tool]||{};
+    for(const c of new Set([...Object.keys(a[tool]||{}),...Object.keys(b[tool]||{})]))
+      out[tool][c]=mergeArr(a[tool]?.[c],b[tool]?.[c]);
+  }
+  return out;
+}
+function persist(){ ls.set(LS.state,JSON.stringify(state)); ls.set(LS.dirty,"1"); scheduleSync(); }
+function upsertIn(tool,coll,rec,save=true){ rec.updatedAt=nowIso(); const arr=state[tool][coll]; const i=arr.findIndex(x=>x.id===rec.id); if(i<0) arr.push(rec); else arr[i]=rec; if(save) persist(); }
+const upsert = (coll,rec) => upsertIn("pgb",coll,rec);
+
+/* ============ OneDrive (Microsoft Graph) ============ */
+let msalApp=null, account=null, syncing=false, syncTimer=null;
+const clientId = () => (ls.get(LS.client)||DEFAULT_CLIENT_ID||"").trim();
+const redirectUri = () => location.origin + location.pathname;
+const GRAPH = "https://graph.microsoft.com/v1.0/me/drive/special/approot";
+
+function setSync(txt,cls=""){ const s=$("sync"); s.textContent=txt; s.className="pill "+cls; }
+
+async function initMsal(){
+  if(!clientId() || !window.msal){ setSync(ls.get(LS.dirty)?"Lokaal":"Lokaal"); return; }
+  try{
+    msalApp = new msal.PublicClientApplication({
+      auth:{ clientId:clientId(), authority:"https://login.microsoftonline.com/consumers", redirectUri:redirectUri() },
+      cache:{ cacheLocation:"localStorage" }
+    });
+    await msalApp.initialize();
+    const r = await msalApp.handleRedirectPromise();
+    account = r?.account || msalApp.getAllAccounts()[0] || null;
+    if(account){ msalApp.setActiveAccount(account); await sync(); }
+    else setSync("Niet ingelogd","warn");
+  }catch(e){ console.error(e); setSync("Fout","bad"); toast("Inloggen mislukt: "+(e.errorMessage||e.message)); }
+  renderSettings();
+}
+async function token(){
+  try{ return (await msalApp.acquireTokenSilent({scopes:SCOPES,account})).accessToken; }
+  catch(e){ await msalApp.acquireTokenRedirect({scopes:SCOPES,account}); throw e; }
+}
+async function gfetch(url,opt={}){
+  const t=await token(); opt.headers={...(opt.headers||{}),Authorization:"Bearer "+t};
+  return fetch(url,opt);
+}
+async function pullRemote(){
+  const r = await gfetch(`${GRAPH}:/${DATA_FILE}`);
+  if(r.status===404) return {data:null,etag:null};
+  if(!r.ok) throw new Error("Lezen mislukt ("+r.status+")");
+  const meta = await r.json();
+  const c = await fetch(meta["@microsoft.graph.downloadUrl"]);
+  return { data: await c.json(), etag: meta.eTag };
+}
+async function putFile(path,body,type,etag){
+  const h={"Content-Type":type};
+  if(etag===null) h["If-None-Match"]="*"; else if(etag) h["If-Match"]=etag;
+  return gfetch(`${GRAPH}:/${path.split("/").map(encodeURIComponent).join("/")}:/content`,{method:"PUT",headers:h,body});
+}
+async function sync(){
+  if(!msalApp||!account||syncing) return;
+  if(!navigator.onLine){ setSync("Offline","warn"); return; }
+  syncing=true; setSync("Synchroniseren…");
+  try{
+    for(let poging=0;poging<3;poging++){
+      const {data,etag}=await pullRemote();
+      const merged = mergeState(state,data);
+      const changedRemote = JSON.stringify(merged)!==JSON.stringify(data);
+      state = merged; ls.set(LS.state,JSON.stringify(state));
+      if(!changedRemote){ ls.del(LS.dirty); break; }
+      const r = await putFile(DATA_FILE,JSON.stringify(state),"application/json",etag);
+      if(r.ok){ ls.del(LS.dirty); break; }
+      if(r.status!==412 && r.status!==409) throw new Error("Opslaan mislukt ("+r.status+")");
+      // 412/409: iemand anders schreef net; opnieuw ophalen en samenvoegen
+    }
+    setSync("OneDrive ✓","ok"); render();
+  }catch(e){ console.error(e); setSync("Niet gesynct","bad"); }
+  finally{ syncing=false; }
+}
+function scheduleSync(){ if(!account){ setSync("Lokaal"); return; } setSync("Wijziging…","warn"); clearTimeout(syncTimer); syncTimer=setTimeout(sync,900); }
+window.addEventListener("online",()=>sync());
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") sync(); });
+
+/* ============ PGB-tool ============ */
+let month = ls.get(LS.month) || todayStr().slice(0,7);
+let editId = null;
+const zvById = id => state.pgb.zorgverleners.find(z=>z.id===id);
+const monthRec = ym => live(state.pgb.maanden).find(m=>m.id===ym);
+const isClosed = ym => monthRec(ym)?.status==="afgesloten";
+const urenVan = ym => live(state.pgb.uren).filter(u=>u.datum.startsWith(ym))
+  .sort((a,b)=>(a.datum+a.begin).localeCompare(b.datum+b.begin));
+function regel(u){
+  const z=zvById(u.zvId); const tarief = u.tarief ?? z?.tarief ?? 0;
+  const h=hours(u.begin,u.eind,u.pauze); return {h,tarief,bedrag:Math.round(h*tarief*100)/100,naam:z?.naam||"?"};
+}
+function totals(ym){
+  const per=new Map(); let U=0,B=0;
+  for(const u of urenVan(ym)){ const r=regel(u); const k=u.zvId+"|"+r.tarief;
+    const p=per.get(k)||{naam:r.naam,tarief:r.tarief,h:0,b:0}; p.h+=r.h; p.b+=r.bedrag; per.set(k,p); U+=r.h; B+=r.bedrag; }
+  return {per:[...per.values()].sort((a,b)=>a.naam.localeCompare(b.naam)),U:Math.round(U*100)/100,B:Math.round(B*100)/100};
+}
+
+function renderPgb(){
+  ls.set(LS.month,month);
+  $("mLabel").textContent=monthLabel(month);
+  const closed=isClosed(month);
+  $("mBadge").textContent=closed?"Afgesloten "+fmtDate(monthRec(month).afgeslotenOp.slice(0,10)):"Open";
+  $("mBadge").className="badge "+(closed?"closed":"open");
+  $("entryCard").style.display=closed?"none":"";
+  $("mClose").style.display=closed?"none":""; $("mReopen").style.display=closed?"":"none";
+
+  const zvs=live(state.pgb.zorgverleners).sort((a,b)=>a.naam.localeCompare(b.naam));
+  const cur=$("fZv").value;
+  $("fZv").innerHTML = zvs.length ? zvs.map(z=>`<option value="${z.id}">${esc(z.naam)}</option>`).join("") : `<option value="">Voeg eerst een zorgverlener toe</option>`;
+  if(zvs.some(z=>z.id===cur)) $("fZv").value=cur;
+
+  const rows=urenVan(month);
+  $("tUren").innerHTML=rows.map(u=>{ const r=regel(u);
+    return `<tr class="${closed?"":"click"}" data-id="${u.id}"><td>${fmtDate(u.datum).slice(0,5)}</td><td>${esc(r.naam)}${u.opm?`<br><span class="muted small">${esc(u.opm)}</span>`:""}</td>
+      <td>${u.begin}–${u.eind}${+u.pauze?`<br><span class="muted small">${u.pauze} min pauze</span>`:""}</td><td class="n">${num2(r.h)}</td><td class="n">${eur(r.bedrag)}</td></tr>`;}).join("");
+  $("tLeeg").textContent = rows.length?"" : "Nog geen uren in deze maand.";
+  if(!closed) $("tUren").querySelectorAll("tr").forEach(tr=>tr.onclick=()=>startEdit(tr.dataset.id));
+
+  const t=totals(month);
+  $("tTot").innerHTML=t.per.map(p=>`<tr><td>${esc(p.naam)}</td><td class="n">${num2(p.h)}</td><td class="n">${eur(p.tarief)}</td><td class="n">${eur(p.b)}</td></tr>`).join("");
+  $("totU").textContent=num2(t.U); $("totB").textContent=eur(t.B);
+  $("mClose").disabled=!rows.length;
+
+  $("tZv").innerHTML=zvs.map(z=>`<tr><td>${esc(z.naam)}</td><td class="n">${eur(z.tarief)}</td>
+    <td class="n"><button class="b sec" data-ze="${z.id}" style="padding:5px 9px">Wijzig</button></td></tr>`).join("") || `<tr><td colspan="3" class="muted">Nog geen zorgverleners.</td></tr>`;
+  $("tZv").querySelectorAll("[data-ze]").forEach(b=>b.onclick=()=>{ const z=zvById(b.dataset.ze); $("zNaam").value=z.naam; $("zTarief").value=num2(z.tarief); $("zAdd").dataset.id=z.id; $("zNaam").focus(); });
+  updateCalc();
+}
+function resetForm(){
+  editId=null; $("entryTitle").textContent="Uren invoeren"; $("fSave").textContent="Toevoegen";
+  $("fCancel").style.display=$("fDelete").style.display="none";
+  const t=todayStr(); $("fDatum").value = t.startsWith(month)?t:month+"-01";
+  $("fOpm").value=""; $("fPauze").value="0"; updateCalc();
+}
+function startEdit(id){
+  const u=state.pgb.uren.find(x=>x.id===id); if(!u) return; editId=id;
+  $("entryTitle").textContent="Regel wijzigen"; $("fSave").textContent="Opslaan";
+  $("fCancel").style.display=$("fDelete").style.display="";
+  $("fDatum").value=u.datum; $("fZv").value=u.zvId; $("fBegin").value=u.begin; $("fEind").value=u.eind; $("fPauze").value=u.pauze; $("fOpm").value=u.opm||"";
+  updateCalc(); $("entryCard").scrollIntoView({behavior:"smooth"});
+}
+function updateCalc(){
+  const h=hours($("fBegin").value,$("fEind").value,$("fPauze").value); const z=zvById($("fZv").value);
+  $("fCalc").textContent = h? `${num2(h)} uur${z?" · "+eur(h*z.tarief):""}` : "";
+}
+["fBegin","fEind","fPauze","fZv"].forEach(id=>$(id).addEventListener("input",updateCalc));
+
+$("fSave").onclick=()=>{
+  const d=$("fDatum").value, zv=$("fZv").value, b=$("fBegin").value, e=$("fEind").value, p=Number($("fPauze").value)||0;
+  if(!zv) return toast("Voeg eerst een zorgverlener toe.");
+  if(!d||!b||!e) return toast("Vul datum, begin- en eindtijd in.");
+  if(isClosed(d.slice(0,7))) return toast("Die maand is al afgesloten.");
+  if(!hours(b,e,p)) return toast("Controleer de tijden en de pauze.");
+  const z=zvById(zv);
+  const rec = editId ? {...state.pgb.uren.find(x=>x.id===editId)} : {id:uid()};
+  Object.assign(rec,{datum:d,zvId:zv,begin:b,eind:e,pauze:p,opm:$("fOpm").value.trim(),tarief:z.tarief});
+  upsert("uren",rec);
+  // overlap-check: zelfde zorgverlener, zelfde dag, overlappende tijden
+  const overlap=live(state.pgb.uren).some(u=>u.id!==rec.id&&u.zvId===zv&&u.datum===d&&u.begin<e&&b<u.eind);
+  toast(overlap?"Opgeslagen — let op: overlapt met een andere regel":"Opgeslagen");
+  if(d.slice(0,7)!==month){ month=d.slice(0,7); }
+  resetForm(); renderPgb();
+};
+$("fCancel").onclick=()=>{ resetForm(); };
+$("fDelete").onclick=async()=>{
+  if(!await ask("Deze regel verwijderen?","Verwijderen",true)) return;
+  const rec={...state.pgb.uren.find(x=>x.id===editId),deleted:true}; upsert("uren",rec); resetForm(); renderPgb(); toast("Verwijderd");
+};
+$("zAdd").onclick=()=>{
+  const naam=$("zNaam").value.trim(), tarief=Math.round(parseBedrag($("zTarief").value)*100)/100;
+  if(!naam||!(tarief>=0)) return toast("Vul naam en uurtarief in.");
+  const id=$("zAdd").dataset.id; const rec=id?{...zvById(id)}:{id:uid()};
+  Object.assign(rec,{naam,tarief}); upsert("zorgverleners",rec);
+  delete $("zAdd").dataset.id; $("zNaam").value=$("zTarief").value="";
+  toast(id?"Zorgverlener bijgewerkt (nieuwe regels krijgen het nieuwe tarief)":"Zorgverlener toegevoegd"); renderPgb();
+};
+$("mPrev").onclick=()=>{ month=shiftMonth(month,-1); resetForm(); renderPgb(); };
+$("mNext").onclick=()=>{ month=shiftMonth(month,1); resetForm(); renderPgb(); };
+
+$("mClose").onclick=async()=>{
+  const t=totals(month);
+  if(!await ask(`${monthLabel(month)} afsluiten? Totaal ${num2(t.U)} uur, ${eur(t.B)}. Daarna kun je in deze maand niets meer wijzigen.`,"Afsluiten")) return;
+  upsert("maanden",{id:month,status:"afgesloten",afgeslotenOp:nowIso(),totaalUren:t.U,totaalBedrag:t.B});
+  renderPgb(); toast("Maand afgesloten");
+  if(account) exportCsv(true);
+};
+$("mReopen").onclick=async()=>{
+  if(!await ask("Deze maand heropenen? Doe dit alleen als de factuur nog niet verstuurd is.","Heropenen",true)) return;
+  upsert("maanden",{...monthRec(month),status:"open"}); renderPgb();
+};
+
+function csvFor(ym){
+  const L=[["Datum","Zorgverlener","Begin","Eind","Pauze (min)","Uren","Uurtarief","Bedrag","Opmerking"].join(";")];
+  for(const u of urenVan(ym)){ const r=regel(u);
+    L.push([fmtDate(u.datum),r.naam,u.begin,u.eind,u.pauze,num2(r.h),num2(r.tarief),num2(r.bedrag),(u.opm||"").replace(/[;\n]/g," ")].join(";")); }
+  const t=totals(ym); L.push(["Totaal","","","","",num2(t.U),"",num2(t.B),""].join(";"));
+  return "﻿"+L.join("\r\n");
+}
+async function exportCsv(silent){
+  if(!account){ toast("Koppel eerst OneDrive in de instellingen."); return; }
+  try{
+    const r=await putFile(`PGB Livia/${month.slice(0,4)}/${month} uren.csv`,csvFor(month),"text/csv");
+    if(!r.ok) throw new Error(r.status); toast("Opgeslagen in OneDrive › Apps › PGB Livia/"+month.slice(0,4));
+  }catch(e){ toast("Export mislukt"); }
+}
+$("mCsv").onclick=()=>exportCsv(false);
+$("mPrint").onclick=()=>{
+  const t=totals(month);
+  $("print").innerHTML=`<h2>Urenoverzicht ${monthLabel(month)}</h2>
+   <table><thead><tr><th>Datum</th><th>Zorgverlener</th><th>Tijd</th><th class="n">Uren</th><th class="n">Bedrag</th></tr></thead><tbody>
+   ${urenVan(month).map(u=>{const r=regel(u);return `<tr><td>${fmtDate(u.datum)}</td><td>${esc(r.naam)}</td><td>${u.begin}–${u.eind}</td><td class="n">${num2(r.h)}</td><td class="n">${eur(r.bedrag)}</td></tr>`}).join("")}
+   </tbody><tfoot><tr><td colspan="3">Totaal</td><td class="n">${num2(t.U)}</td><td class="n">${eur(t.B)}</td></tr></tfoot></table>`;
+  try{ window.print(); }catch(e){ toast("Afdrukken is hier niet beschikbaar"); }
+};
+
+/* ============ Instellingen ============ */
+function renderSettings(){
+  $("sClient").value=clientId(); $("sRedirect").textContent=redirectUri();
+  $("odStatus").textContent = account ? `Gekoppeld als ${account.username}.` :
+    clientId() ? "Client ID ingevuld, nog niet ingelogd." : "Niet gekoppeld. Je gegevens staan nu alleen op dit apparaat.";
+  $("sLogin").style.display=account?"none":""; $("sLogout").style.display=$("sSync").style.display=account?"":"none";
+}
+$("sLogin").onclick=async()=>{
+  const id=$("sClient").value.trim();
+  if(!/^[0-9a-f-]{36}$/i.test(id)) return toast("Dat lijkt geen geldige client ID.");
+  if(!window.msal) return toast("Microsoft-login kon niet laden (geen internet of geblokkeerd).");
+  if(id!==clientId()){ ls.set(LS.client,id); msalApp=null; }
+  if(!msalApp){ await initMsal(); }
+  try{ await msalApp.loginRedirect({scopes:SCOPES,prompt:"select_account"}); }
+  catch(e){ toast("Inloggen lukt niet op deze pagina: "+(e.errorCode||e.message)); }
+};
+$("sSync").onclick=()=>sync();
+$("sLogout").onclick=async()=>{
+  if(!await ask("OneDrive ontkoppelen op dit apparaat? Je gegevens in OneDrive blijven bewaard.","Ontkoppelen")) return;
+  const a=account; account=null; renderSettings(); setSync("Lokaal");
+  try{ await msalApp.logoutRedirect({account:a,postLogoutRedirectUri:redirectUri()}); }catch(e){}
+};
+$("sCopy").onclick=async()=>{ try{ await navigator.clipboard.writeText(JSON.stringify(state,null,1)); toast("Gekopieerd"); }catch(e){ toast("Kopiëren lukt hier niet"); } };
+$("sImportBtn").onclick=async()=>{
+  let d; try{ d=JSON.parse($("sImport").value); if(!d.pgb) throw 0; }catch(e){ return toast("Geen geldige back-up."); }
+  if(!await ask("Back-up samenvoegen met de huidige gegevens?","Samenvoegen")) return;
+  state=mergeState(state,d); persist(); $("sImport").value=""; render(); toast("Teruggezet");
+};
+
+/* ============ AI (Anthropic API) ============ */
+const AIK = { key:"pd-ai-key", model:"pd-ai-model" };
+const aiKey = () => (ls.get(AIK.key)||"").trim();
+const aiModel = () => ls.get(AIK.model) || "claude-sonnet-5-5";
+async function callClaude({system,messages,max_tokens=900}){
+  if(!aiKey()) { location.hash="instellingen"; throw new Error("Vul eerst je API-sleutel in bij Instellingen."); }
+  if(!navigator.onLine) throw new Error("Geen internetverbinding.");
+  let r;
+  try{
+    r = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{
+      "x-api-key":aiKey(),"anthropic-version":"2023-06-01","content-type":"application/json",
+      "anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:aiModel(),max_tokens,system,messages})});
+  }catch(e){ throw new Error("AI niet bereikbaar vanaf deze pagina."); }
+  if(r.status===401) throw new Error("API-sleutel ongeldig.");
+  if(r.status===429) throw new Error("Te veel verzoeken of limiet bereikt; probeer zo opnieuw.");
+  if(!r.ok){ let m=""; try{ m=(await r.json()).error?.message||""; }catch(e){} throw new Error("AI-fout ("+r.status+") "+m); }
+  const d=await r.json(); return (d.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("");
+}
+function parseJSON(t){
+  const s=t.search(/[\[{]/), e=Math.max(t.lastIndexOf("}"),t.lastIndexOf("]"));
+  if(s<0||e<s) throw new Error("Onverwacht antwoord van de AI.");
+  return JSON.parse(t.slice(s,e+1));
+}
+function bubble(log,cls,html){ const d=document.createElement("div"); d.className="msg "+cls; d.innerHTML=html; $(log).appendChild(d); $(log).scrollTop=1e9; return d; }
+
+/* ============ Spaans ============ */
+const addDays = (s,n) => { const [y,m,d]=s.split("-").map(Number); const x=new Date(y,m-1,d+n); return `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}`; };
+const woorden = () => live(state.spaans.woorden);
+const dueWoorden = () => { const t=todayStr(); return woorden().filter(w=>(w.due||t)<=t); };
+const normEs = s => s.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/^(el|la|los|las|un|una)\s+/,"");
+const findWoord = es => woorden().find(w=>normEs(w.es)===normEs(es));
+function streak(){
+  const days=new Set(live(state.spaans.dagen).filter(d=>d.n>0).map(d=>d.id));
+  let d=todayStr(); if(!days.has(d)) d=addDays(d,-1);
+  let n=0; while(days.has(d)){ n++; d=addDays(d,-1); } return n;
+}
+function themas(){ return [...new Set(woorden().map(w=>w.thema).filter(Boolean))].sort(); }
+function addWoord(es,nl,thema="",ex=""){
+  es=es.trim(); nl=nl.trim(); if(!es||!nl) return false;
+  if(findWoord(es)) return false;
+  upsertIn("spaans","woorden",{id:uid(),es,nl,thema:thema.trim(),ex:ex.trim(),due:todayStr(),iv:0,ease:2.5,reps:0,lapses:0},false);
+  return true;
+}
+
+// Herhaling op het juiste moment (vereenvoudigde SM-2): goed gekende woorden komen steeds later terug.
+function schedule(w,g){
+  let {iv=0,ease=2.5,reps=0,lapses=0}=w;
+  if(g===0){ reps=0; iv=0; ease=Math.max(1.3,ease-0.2); lapses++; }
+  else if(g===1){ iv=Math.max(1,Math.round((iv||1)*1.2)); ease=Math.max(1.3,ease-0.15); }
+  else if(g===2){ iv = reps===0?1 : reps===1?3 : Math.round(iv*ease); reps++; }
+  else { iv = reps===0?3 : Math.round(Math.max(iv,1)*ease*1.3); ease+=0.15; reps++; }
+  return {iv,ease:Math.round(ease*100)/100,reps,lapses,due:addDays(todayStr(),iv)};
+}
+const ivLabel = n => n===0?"nu":n===1?"1 dag":n<30?n+" dagen":Math.round(n/30)+" mnd";
+
+let esVoice=null;
+function pickVoice(){ try{ const v=speechSynthesis.getVoices(); esVoice=v.find(x=>x.lang==="es-ES")||v.find(x=>x.lang?.startsWith("es"))||null; }catch(e){} }
+try{ pickVoice(); speechSynthesis.onvoiceschanged=pickVoice; }catch(e){}
+function speak(t){
+  try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t.replace(/\s*\(.*?\)/g,"")); u.lang="es-ES"; if(esVoice) u.voice=esVoice; u.rate=.9; speechSynthesis.speak(u); }
+  catch(e){ toast("Uitspreken wordt hier niet ondersteund"); }
+}
+
+let session=null; // {queue:[{id,dir}], done, total, extra}
+function renderSpaans(){
+  const due=dueWoorden().length;
+  $("stDue").textContent=due; $("stTot").textContent=woorden().length; $("stStreak").textContent=streak();
+  const th=themas(), opts=`<option value="">Alle thema's</option>`+th.map(t=>`<option>${esc(t)}</option>`).join("");
+  for(const id of ["esThemaOef","wFilter"]){ const v=$(id).value; $(id).innerHTML=opts; if(th.includes(v)) $(id).value=v; }
+  $("themaList").innerHTML=th.map(t=>`<option value="${esc(t)}">`).join("");
+  $("esStartInfo").textContent = !woorden().length ? "Voeg eerst woorden toe via het tabblad Woorden." :
+    due ? `${Math.min(due,20)} kaarten klaar om te herhalen.` : "Alles herhaald voor vandaag. Morgen komen er weer woorden terug.";
+  $("esGo").disabled=!due;
+  renderWoordLijst();
+}
+function startSession(extra){
+  const th=$("esThemaOef").value, dirSel=$("esDir").value;
+  let pool=(extra?woorden():dueWoorden()).filter(w=>!th||w.thema===th);
+  pool=pool.sort(()=>Math.random()-.5).slice(0,extra?30:20);
+  if(!pool.length) return toast(extra?"Geen woorden in dit thema.":"Niets te herhalen in dit thema.");
+  session={queue:pool.map(w=>({id:w.id,dir:dirSel==="mix"?(Math.random()<.5?"es":"nl"):dirSel})),done:0,total:pool.length,extra};
+  $("esStart").style.display="none"; $("esCard").style.display=""; showCard();
+}
+function showCard(){
+  if(!session.queue.length){ endSession(); return; }
+  const c=session.queue[0], w=state.spaans.woorden.find(x=>x.id===c.id);
+  if(!w||w.deleted){ session.queue.shift(); return showCard(); }
+  const qEs=c.dir==="es";
+  $("fcCount").textContent=`${session.done+1} / ${session.total}${session.extra?" · extra (telt niet mee in planning)":""}`;
+  $("fcQ").textContent=qEs?w.es:w.nl; $("fcAns").textContent=qEs?w.nl:w.es;
+  $("fcSpkQ").style.display=qEs?"":"none"; $("fcSpkA").style.display=qEs?"none":"";
+  $("fcEx").textContent=w.ex||"";
+  $("fcA").style.display="none"; $("fcGrades").style.display="none"; $("fcShow").style.display="";
+  if(!session.extra) for(let g=0;g<4;g++) $("gh"+g).textContent=ivLabel(schedule(w,g).iv); else for(let g=0;g<4;g++) $("gh"+g).textContent="";
+}
+function grade(g){
+  const c=session.queue.shift(), w={...state.spaans.woorden.find(x=>x.id===c.id)};
+  if(!session.extra){ Object.assign(w,schedule(w,g)); upsertIn("spaans","woorden",w,false); }
+  if(g===0) session.queue.push({...c}); else session.done++;
+  const t=todayStr(), d={...(state.spaans.dagen.find(x=>x.id===t)||{id:t,n:0})}; d.n++; upsertIn("spaans","dagen",d,false);
+  persist(); showCard();
+}
+function endSession(){
+  const n=session?.done||0; session=null;
+  $("esCard").style.display="none"; $("esStart").style.display=""; renderSpaans();
+  if(n) { const k=streak(); toast(`Klaar! ${n} ${n===1?"woord":"woorden"} geoefend · ${k} ${k===1?"dag":"dagen"} op rij`); }
+}
+$("esGo").onclick=()=>startSession(false);
+$("esExtra").onclick=()=>startSession(true);
+$("fcShow").onclick=()=>{ $("fcA").style.display=""; $("fcGrades").style.display=""; $("fcShow").style.display="none"; };
+$("fcGrades").querySelectorAll("button").forEach(b=>b.onclick=()=>grade(Number(b.dataset.g)));
+$("fcStop").onclick=endSession;
+$("fcSpkQ").onclick=()=>speak($("fcQ").textContent);
+$("fcSpkA").onclick=()=>speak($("fcAns").textContent);
+$("esTabs").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+  $("esTabs").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".estab").forEach(p=>p.style.display=p.id==="es-"+b.dataset.tab?"":"none");
+});
+
+// Woorden beheren
+let wEdit=null;
+function renderWoordLijst(){
+  const q=normEs($("wSearch").value||""), th=$("wFilter").value, t=todayStr();
+  const rows=woorden().filter(w=>(!th||w.thema===th)&&(!q||normEs(w.es).includes(q)||w.nl.toLowerCase().includes(q)))
+    .sort((a,b)=>a.es.localeCompare(b.es,"es"));
+  $("wList").innerHTML=rows.slice(0,300).map(w=>`<tr class="click" data-id="${w.id}"><td>${esc(w.es)}${w.thema?`<br><span class="muted small">${esc(w.thema)}</span>`:""}</td><td>${esc(w.nl)}</td>
+    <td class="n small">${(w.due||t)<=t?"vandaag":fmtDate(w.due).slice(0,5)}</td></tr>`).join("");
+  $("wCount").textContent=`${rows.length} woord(en)`+(rows.length>300?" · eerste 300 getoond":"");
+  $("wList").querySelectorAll("tr").forEach(tr=>tr.onclick=()=>{
+    const w=state.spaans.woorden.find(x=>x.id===tr.dataset.id); wEdit=w.id;
+    $("wEs").value=w.es; $("wNl").value=w.nl; $("wThema").value=w.thema||""; $("wEx").value=w.ex||"";
+    $("wTitle").textContent="Woord wijzigen"; $("wCancel").style.display=$("wDel").style.display="";
+    $("wTitle").scrollIntoView({behavior:"smooth"});
+  });
+}
+function resetWoordForm(){ wEdit=null; ["wEs","wNl","wEx"].forEach(i=>$(i).value=""); $("wTitle").textContent="Woord toevoegen"; $("wCancel").style.display=$("wDel").style.display="none"; }
+$("wSave").onclick=()=>{
+  const es=$("wEs").value, nl=$("wNl").value;
+  if(!es.trim()||!nl.trim()) return toast("Vul Spaans en Nederlands in.");
+  if(wEdit){ const w={...state.spaans.woorden.find(x=>x.id===wEdit),es:es.trim(),nl:nl.trim(),thema:$("wThema").value.trim(),ex:$("wEx").value.trim()};
+    upsertIn("spaans","woorden",w); toast("Bijgewerkt"); }
+  else if(!addWoord(es,nl,$("wThema").value,$("wEx").value)) return toast("Dit woord staat al in je lijst.");
+  else { persist(); toast("Toegevoegd"); }
+  resetWoordForm(); renderSpaans(); $("wEs").focus();
+};
+$("wCancel").onclick=resetWoordForm;
+$("wDel").onclick=async()=>{ if(!await ask("Dit woord verwijderen?","Verwijderen",true)) return;
+  upsertIn("spaans","woorden",{...state.spaans.woorden.find(x=>x.id===wEdit),deleted:true}); resetWoordForm(); renderSpaans(); };
+$("wSearch").oninput=renderWoordLijst; $("wFilter").onchange=renderWoordLijst;
+$("bulkGo").onclick=()=>{
+  let n=0,dub=0,fout=0;
+  for(const line of $("bulkIn").value.split(/\r?\n/)){ if(!line.trim()) continue;
+    const p=line.split(/\s*(?:=|;|\t)\s*/); if(p.length<2||!p[0]||!p[1]){ fout++; continue; }
+    if(addWoord(p[0],p[1],$("bulkThema").value)) n++; else dub++; }
+  if(n) persist(); $("bulkIn").value=""; renderSpaans();
+  toast(`${n} toegevoegd`+(dub?` · ${dub} stonden er al`:"")+(fout?` · ${fout} regels niet herkend`:""));
+};
+$("genGo").onclick=async()=>{
+  const topic=$("genTopic").value.trim(); if(!topic) return toast("Vul een onderwerp in.");
+  const n=Math.min(40,Math.max(5,Number($("genN").value)||15)), lvl=$("genLvl").value;
+  $("genGo").disabled=true; $("genOut").innerHTML=`<p class="typing">Lijst wordt gemaakt…</p>`;
+  try{
+    const bestaand=woorden().map(w=>w.es).slice(-150).join(", ");
+    const t=await callClaude({max_tokens:2500,system:"Je maakt Spaanse woordenlijsten (Spaans uit Spanje) voor een Nederlandse leerling. Antwoord met alleen JSON.",
+      messages:[{role:"user",content:`Maak ${n} nuttige woorden/uitdrukkingen over "${topic}" op niveau ${lvl}. Zelfstandige naamwoorden met lidwoord (el/la). Sla deze over, die kent de leerling al: ${bestaand||"(geen)"}.
+Formaat: [{"es":"...","nl":"...","ex":"korte Spaanse voorbeeldzin"}]`}]});
+    const list=parseJSON(t).filter(x=>x.es&&x.nl);
+    $("genOut").innerHTML=`<p class="small muted">Tik woorden aan die je niet wilt.</p><div class="nw">${list.map((x,i)=>`<button class="chip done" data-i="${i}">${esc(x.es)} = ${esc(x.nl)}</button>`).join("")}</div>
+      <div class="actions"><button class="b" id="genAdd">Voeg geselecteerde toe</button></div>`;
+    $("genOut").querySelectorAll(".chip").forEach(c=>c.onclick=()=>c.classList.toggle("done"));
+    $("genAdd").onclick=()=>{ let k=0; $("genOut").querySelectorAll(".chip.done").forEach(c=>{ const x=list[c.dataset.i]; if(addWoord(x.es,x.nl,topic,x.ex||"")) k++; });
+      if(k) persist(); $("genOut").innerHTML=""; renderSpaans(); toast(`${k} woorden toegevoegd aan thema "${topic}"`); };
+  }catch(e){ $("genOut").innerHTML=""; toast(e.message); }
+  finally{ $("genGo").disabled=false; }
+};
+
+// Gesprek oefenen
+let gMsgs=[], gSys="";
+function gSystem(){
+  const lvl=$("gLvl").value, scen=$("gScen").value.trim()||"een vrij, alledaags gesprek";
+  const oef=$("gUseWords").checked ? woorden().sort((a,b)=>(a.due||"").localeCompare(b.due||"")).slice(0,15).map(w=>w.es).join(", ") : "";
+  return `Je bent een vriendelijke gesprekspartner uit Spanje voor een Nederlandse leerling op niveau ${lvl} (ERK). Situatie: ${scen}. Speel je rol in die situatie.
+Schrijf in eenvoudig Spaans passend bij ${lvl}: maximaal 2-3 korte zinnen per beurt en eindig meestal met een vraag zodat het gesprek doorloopt.
+${oef?`Verwerk waar het natuurlijk past deze woorden die de leerling oefent: ${oef}.`:""}
+Antwoord ALTIJD met alleen dit JSON-object:
+{"antwoord":"jouw beurt in het Spaans","vertaling":"Nederlandse vertaling van jouw beurt","correctie":"als het laatste bericht van de leerling fouten bevat: kort in het Nederlands wat er fout was plus de verbeterde Spaanse zin; anders lege string","nieuwe_woorden":[{"es":"woord met lidwoord","nl":"betekenis"}]}
+Geef bij nieuwe_woorden maximaal 3 woorden uit jouw beurt die voor dit niveau waarschijnlijk nieuw zijn.`;
+}
+function nwChips(list){
+  return (list||[]).filter(x=>x.es&&x.nl).map(x=>{ const has=!!findWoord(x.es);
+    return `<button class="chip${has?" done":""}" data-es="${esc(x.es)}" data-nl="${esc(x.nl)}">${has?"✓":"＋"} ${esc(x.es)} = ${esc(x.nl)}</button>`; }).join("");
+}
+async function gTurn(userText,show=true){
+  if(show) bubble("gLog","me",esc(userText));
+  gMsgs.push({role:"user",content:userText});
+  const wait=bubble("gLog","ai typing","…");
+  $("gSend").disabled=true;
+  try{
+    const t=await callClaude({system:gSys,messages:gMsgs});
+    gMsgs.push({role:"assistant",content:t});
+    let j; try{ j=parseJSON(t); }catch(e){ j={antwoord:t}; }
+    wait.className="msg ai";
+    wait.innerHTML=`${esc(j.antwoord||"")} <button class="spk">🔊</button>
+      ${j.vertaling?`<details><summary class="small muted">Vertaling</summary><span class="small">${esc(j.vertaling)}</span></details>`:""}
+      ${j.correctie?`<div class="corr">✏️ ${esc(j.correctie)}</div>`:""}
+      ${j.nieuwe_woorden?.length?`<div class="nw">${nwChips(j.nieuwe_woorden)}</div>`:""}`.replace(/\n\s*/g,"");
+    wait.querySelector(".spk").onclick=()=>speak(j.antwoord||"");
+    wait.querySelectorAll(".chip:not(.done)").forEach(c=>c.onclick=()=>{
+      if(addWoord(c.dataset.es,c.dataset.nl,"gesprek")) persist();
+      c.classList.add("done"); c.textContent="✓ "+c.dataset.es+" = "+c.dataset.nl; c.onclick=null; });
+    $("gLog").scrollTop=1e9;
+  }catch(e){ wait.remove(); gMsgs.pop(); toast(e.message); if(show) $("gIn").value=userText; }
+  finally{ $("gSend").disabled=false; }
+}
+$("gStart").onclick=()=>{ gMsgs=[]; gSys=gSystem(); $("gLog").innerHTML=""; gTurn("(Begin jij het gesprek met je eerste beurt.)",false); };
+$("gSend").onclick=()=>{ const v=$("gIn").value.trim(); if(!v) return; if(!gSys){ gSys=gSystem(); } $("gIn").value=""; gTurn(v); };
+$("gIn").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey&&!/iPhone|iPad/.test(navigator.userAgent)){ e.preventDefault(); $("gSend").click(); } });
+$("gHint").onclick=async()=>{
+  if(!gMsgs.length) return toast("Start eerst een gesprek.");
+  $("gHint").disabled=true;
+  try{
+    const t=await callClaude({max_tokens:400,system:gSys,messages:[...gMsgs,{role:"user",content:'(Hulpvraag, geen beurt: geef 2 korte antwoorden die de leerling nu kan geven. Alleen JSON: {"tips":[{"es":"...","nl":"..."}]})'}]});
+    const tips=parseJSON(t).tips||[];
+    const d=bubble("gLog","ai",`<span class="small muted">Je zou kunnen zeggen (tik om over te nemen):</span><div class="nw">${tips.map(x=>`<button class="chip" data-es="${esc(x.es)}">${esc(x.es)}<br><span class="muted">${esc(x.nl)}</span></button>`).join("")}</div>`);
+    d.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{ $("gIn").value=c.dataset.es; $("gIn").focus(); });
+  }catch(e){ toast(e.message); }
+  finally{ $("gHint").disabled=false; }
+};
+(()=>{ // inspreken in het Spaans, als de browser het kan
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR) return;
+  $("gMic").style.display="";
+  $("gMic").onclick=()=>{ try{
+    const r=new SR(); r.lang="es-ES"; r.interimResults=false;
+    r.onresult=e=>{ $("gIn").value=($("gIn").value+" "+e.results[0][0].transcript).trim(); };
+    r.onerror=()=>toast("Inspreken lukte niet"); r.onend=()=>$("gMic").textContent="🎤";
+    $("gMic").textContent="⏺"; r.start();
+  }catch(e){ toast("Inspreken wordt hier niet ondersteund"); } };
+})();
+
+/* ============ Assistent ============ */
+let aMsgs=[];
+$("aSend").onclick=async()=>{
+  const v=$("aIn").value.trim(); if(!v) return;
+  if(!aMsgs.length) $("aLog").innerHTML="";
+  bubble("aLog","me",esc(v)); $("aIn").value=""; aMsgs.push({role:"user",content:v});
+  const wait=bubble("aLog","ai typing","…"); $("aSend").disabled=true;
+  try{
+    const t=await callClaude({max_tokens:1500,messages:aMsgs,
+      system:`Je bent een persoonlijke assistent in een privé-dashboard. Antwoord in het Nederlands, kort en praktisch, zonder opmaaktekens zoals ** of #. Vandaag is ${fmtDate(todayStr())}.`});
+    aMsgs.push({role:"assistant",content:t}); wait.className="msg ai plain"; wait.textContent=t; $("aLog").scrollTop=1e9;
+  }catch(e){ wait.remove(); aMsgs.pop(); $("aIn").value=v; toast(e.message); }
+  finally{ $("aSend").disabled=false; }
+};
+$("aClear").onclick=()=>{ aMsgs=[]; $("aLog").innerHTML=`<p class="muted small">Nieuw gesprek.</p>`; };
+
+/* AI-instellingen */
+function renderAiSettings(){ $("sKey").value=aiKey(); $("sModel").value=aiModel(); }
+$("sKeySave").onclick=()=>{ const k=$("sKey").value.trim(); if(k&&!k.startsWith("sk-ant-")) return toast("Een Anthropic-sleutel begint met sk-ant-");
+  ls.set(AIK.key,k); ls.set(AIK.model,$("sModel").value); toast("Opgeslagen op dit apparaat"); };
+$("sKeyTest").onclick=async()=>{ $("sKeySave").click(); try{ const t=await callClaude({max_tokens:20,messages:[{role:"user",content:"Zeg alleen: ¡Hola!"}]}); toast("Werkt: "+t.trim()); }catch(e){ toast(e.message); } };
+$("sKeyDel").onclick=()=>{ ls.del(AIK.key); $("sKey").value=""; toast("Sleutel gewist"); };
+
+/* ============ Navigatie ============ */
+const VIEWS={home:"Privé dashboard",pgb:"PGB uren Livia",spaans:"Spaanse les",assistent:"Assistent",instellingen:"Instellingen"};
+function render(){
+  const v=(location.hash||"#home").slice(1); const view=VIEWS[v]?v:"home";
+  document.querySelectorAll(".view").forEach(s=>s.classList.toggle("active",s.id==="v-"+view));
+  $("title").textContent=VIEWS[view]; $("back").style.display=view==="home"?"none":"";
+  if(view==="pgb") renderPgb();
+  if(view==="spaans") renderSpaans();
+  if(view==="instellingen"){ renderSettings(); renderAiSettings(); }
+  if(view==="home"){ const t=totals(todayStr().slice(0,7)); $("tileSub").textContent=`Deze maand: ${num2(t.U)} uur`;
+    const d=dueWoorden().length; $("tileSpaans").textContent = woorden().length ? (d?`${d} te herhalen`:"Alles herhaald ✓") : "Woordjes & gesprekken"; }
+}
+document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>location.hash=b.dataset.go);
+$("back").onclick=()=>location.hash="home";
+$("btnSettings").onclick=()=>location.hash="instellingen";
+window.addEventListener("hashchange",render);
+
+// Na terugkeer van Microsoft-login staat er een code in de hash; die laat MSAL verwerken voordat we navigeren.
+const authReturn = /code=|error=/.test(location.hash);
+if(!authReturn){ resetForm(); render(); }
+initMsal().then(()=>{ if(authReturn){ history.replaceState(null,"",location.pathname+"#home"); resetForm(); render(); } });
+</script>
+</body>
+</html>
