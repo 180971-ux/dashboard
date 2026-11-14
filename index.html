@@ -433,7 +433,7 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
 <script>
 "use strict";
 /* ============ Config ============ */
-const APP_VERSION = "1.5.3";          // ophogen bij elke nieuwe versie
+const APP_VERSION = "1.5.4";          // ophogen bij elke nieuwe versie
 const APP_DATUM = "14-11-2026";
 const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
@@ -1114,7 +1114,7 @@ function pgbUren(){ try{ const x=JSON.parse(localStorage.getItem("pgb-livia-v1")
   const e=new Date(y,m+1,0); let h=0; for(let d=new Date(s); d<=e; d.setDate(d.getDate()+1)){ const ds=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); const v=days[ds]; h+= v&&v.h!=null? v.h : +st.stdUren; }
   return Math.round(h*100)/100; }catch(e){ return null; } }
 const TOOLS = {
-  pgb:{ ic:"🕒", kleur:"#c0628a", naam:"PGB uren", url:"pgb.html", sub:()=>{ const u=pgbUren(); return u==null?"Uren & VGZ-declaratie":`Deze maand: ${num2(u)} uur`; } },
+  pgb:{ ic:"🕒", kleur:"#c0628a", naam:"PGB Livia", url:"pgb.html", sub:()=>{ const u=pgbUren(); return u==null?"Uren & VGZ-declaratie":`Deze maand: ${num2(u)} uur`; } },
   assistent:{ ic:"💬", kleur:"#8f7ad6", naam:"Assistent", sub:()=>"Vraag maar raak" }
 };
 const DEFAULT_CATS = [ {id:"c-livia",naam:"Livia",tools:["pgb"]}, {id:"c-anita",naam:"Anita",tools:[]}, {id:"c-edward",naam:"Edward",tools:["spaans","assistent"]} ];
