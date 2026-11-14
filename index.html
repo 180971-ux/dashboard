@@ -433,7 +433,7 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
 <script>
 "use strict";
 /* ============ Config ============ */
-const APP_VERSION = "1.5.4";          // ophogen bij elke nieuwe versie
+const APP_VERSION = "1.5.5";          // ophogen bij elke nieuwe versie
 const APP_DATUM = "14-11-2026";
 const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
@@ -1107,6 +1107,11 @@ $("slotOff").onclick=async()=>{ const p=$("slotNp").value; if(!p) return toast("
   Slot.uitzetten(); $("slotNp").value=$("slotNp2").value=""; renderSlot(); toast("Vergrendeling staat uit."); };
 
 /* ============ Startscherm & categorieën ============ */
+// Tot en met welke maand de PGB-uren gedeclareerd zijn (status Ingediend of Betaald in de PGB-tool)
+function pgbGedecl(){ try{ const x=JSON.parse(localStorage.getItem("pgb-livia-v1")||"null")||window.PGB_START||null; if(!x||!x.months) return "";
+  const k=Object.keys(x.months).filter(m=>x.months[m]&&x.months[m].status&&x.months[m].status!=="Concept").sort().pop();
+  if(!k) return " &nbsp;·&nbsp; PGB nog niets gedeclareerd";
+  const [y,m]=k.split("-").map(Number); return " &nbsp;·&nbsp; PGB gedeclareerd t/m "+new Date(y,m-1,1).toLocaleDateString("nl-NL",{month:"long",year:"numeric"}); }catch(e){ return ""; } }
 // Uren van de PGB-tool (pgb.html) voor deze maand: standaard uren per dag, plus afwijkingen.
 function pgbUren(){ try{ const x=JSON.parse(localStorage.getItem("pgb-livia-v1")||"null")||window.PGB_START||null; const st=x&&x.settings; if(!st||!st.stdUren) return null;
   const n=new Date(), y=n.getFullYear(), m=n.getMonth(), k=y+"-"+String(m+1).padStart(2,"0"), days=(x.months&&x.months[k]&&x.months[k].days)||{};
@@ -1135,7 +1140,7 @@ function renderHome(){
   const nu=new Date(), dag=(d=>d[0].toUpperCase()+d.slice(1))(nu.toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long",year:"numeric"}));
   const wk=(d=>{ d=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7)); const j=new Date(Date.UTC(d.getUTCFullYear(),0,1)); return Math.ceil(((d-j)/864e5+1)/7); })(nu);
   const hero=`<div class="hero"><h2>${groet}</h2>
-    <div class="ticker" aria-label="${dag}"><span>${dag} &nbsp;·&nbsp; week ${wk}</span></div></div>`;
+    <div class="ticker" aria-label="${dag}"><span>${dag} &nbsp;·&nbsp; week ${wk}${pgbGedecl()}</span></div></div>`;
   // Alleen tegels, zonder categorienamen (volgorde volgt nog wel de indeling)
   const tools=layout().flatMap(c=>c.tools);
   $("homeCats").innerHTML=hero+`<div class="tiles">${tools.map(t=>{ let sub=""; try{ sub=TOOLS[t].sub(); }catch(e){}
