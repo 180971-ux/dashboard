@@ -429,7 +429,7 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
 <script>
 "use strict";
 /* ============ Config ============ */
-const APP_VERSION = "1.5.0";          // ophogen bij elke nieuwe versie
+const APP_VERSION = "1.5.1";          // ophogen bij elke nieuwe versie
 const APP_DATUM = "14-11-2026";
 const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
@@ -1111,7 +1111,6 @@ function pgbUren(){ try{ const x=JSON.parse(localStorage.getItem("pgb-livia-v1")
   return Math.round(h*100)/100; }catch(e){ return null; } }
 const TOOLS = {
   pgb:{ ic:"🕒", kleur:"#c0628a", naam:"PGB uren", url:"pgb.html", sub:()=>{ const u=pgbUren(); return u==null?"Uren & VGZ-declaratie":`Deze maand: ${num2(u)} uur`; } },
-  spaans:{ ic:"🇪🇸", kleur:"#e8846b", naam:"Spaanse les", sub:()=>{ const pr=profielen(), d=dueWoorden().length, wie=pr.length>1?actProf().naam+": ":""; return woorden().length?(wie+(d?`${d} te herhalen`:"alles herhaald ✓")):"Woordjes & gesprekken"; } },
   assistent:{ ic:"💬", kleur:"#8f7ad6", naam:"Assistent", sub:()=>"Vraag maar raak" }
 };
 const DEFAULT_CATS = [ {id:"c-livia",naam:"Livia",tools:["pgb"]}, {id:"c-anita",naam:"Anita",tools:[]}, {id:"c-edward",naam:"Edward",tools:["spaans","assistent"]} ];
@@ -1130,7 +1129,7 @@ function renderHome(){
   const u=new Date().getHours(), groet=u<6?"Goedenacht":u<12?"Goedemorgen":u<18?"Goedemiddag":"Goedenavond";
   const pu=pgbUren(), due=dueWoorden().length, rk=streak();
   const hero=`<div class="hero"><h2>${groet}</h2><p>${(d=>d[0].toUpperCase()+d.slice(1))(new Date().toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long"}))}</p>
-    <div class="kpis"><div class="kpi"><b>${pu==null?"–":num2(pu)}</b>uur PGB deze maand</div><div class="kpi"><b>${due}</b>woorden herhalen${profielen().length>1?" ("+esc(actProf().naam)+")":""}</div><div class="kpi"><b>${rk}</b>${rk===1?"dag":"dagen"} Spaans op rij</div></div></div>`;
+    <div class="kpis" style="grid-template-columns:1fr"><div class="kpi"><b>${pu==null?"–":num2(pu)}</b>uur PGB deze maand</div></div></div>`;
   $("homeCats").innerHTML=hero+layout().filter(c=>c.tools.length||c.id!=="c-overig").map(c=>`<div class="cat" style="--catc:${c.tools.length?TOOLS[c.tools[0]].kleur:"#b39fac"}"><h3>${esc(c.naam)}</h3><div class="tiles">${c.tools.length?"":`<div class="tile soon" style="min-height:72px"><small>Nog geen tools. Verplaats er een via "Indeling aanpassen".</small></div>`}${
     c.tools.map(t=>{ let sub=""; try{ sub=TOOLS[t].sub(); }catch(e){}
       return `<button class="tile" data-go="${t}" style="--tc-bg:${TOOLS[t].kleur}22"><span class="ic">${TOOLS[t].ic}</span><div><b>${esc(TOOLS[t].naam)}</b><br><small>${esc(sub)}</small></div></button>`; }).join("")
@@ -1182,6 +1181,7 @@ checkUpdate(); document.addEventListener("visibilitychange",()=>{ if(document.vi
 
 /* ============ Navigatie ============ */
 if(location.hash==="#pgb") location.replace("pgb.html");
+if(location.hash==="#spaans") history.replaceState(null,"",location.pathname+"#home");
 const VIEWS={home:"Privé dashboard",pgb:"PGB uren Livia",spaans:"Spaanse les",assistent:"Assistent",instellingen:"Instellingen"};
 function render(){
   const v=(location.hash||"#home").slice(1); const view=VIEWS[v]?v:"home";
