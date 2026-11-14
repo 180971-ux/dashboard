@@ -129,7 +129,7 @@ header{background:linear-gradient(120deg,#6b3a5e 0%,#a2557e 55%,#d98a9f 100%)}
 .hero .kpi{background:rgba(255,255,255,.14);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:12px;padding:8px 10px;font-size:12px;line-height:1.25}
 .hero .kpi b{display:block;font-size:18px}
 .ticker{margin-top:14px;background:rgba(255,255,255,.14);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:12px;overflow:hidden;white-space:nowrap;padding:12px 0;font-size:17px;font-weight:600}
-.ticker span{display:inline-block;padding-left:100%;animation:tick 14s linear infinite}
+.ticker span{display:inline-block;padding-left:100%;animation:tick 18s linear infinite}
 @keyframes tick{from{transform:translateX(-100%)}to{transform:translateX(0)}}
 @media (prefers-reduced-motion: reduce){.ticker span{animation:none;padding-left:14px}}
 .cat h3{display:flex;align-items:center;gap:8px}
@@ -433,7 +433,7 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
 <script>
 "use strict";
 /* ============ Config ============ */
-const APP_VERSION = "1.5.5";          // ophogen bij elke nieuwe versie
+const APP_VERSION = "1.5.6";          // ophogen bij elke nieuwe versie
 const APP_DATUM = "14-11-2026";
 const DEFAULT_CLIENT_ID = "";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
@@ -1111,7 +1111,12 @@ $("slotOff").onclick=async()=>{ const p=$("slotNp").value; if(!p) return toast("
 function pgbGedecl(){ try{ const x=JSON.parse(localStorage.getItem("pgb-livia-v1")||"null")||window.PGB_START||null; if(!x||!x.months) return "";
   const k=Object.keys(x.months).filter(m=>x.months[m]&&x.months[m].status&&x.months[m].status!=="Concept").sort().pop();
   if(!k) return " &nbsp;·&nbsp; PGB nog niets gedeclareerd";
-  const [y,m]=k.split("-").map(Number); return " &nbsp;·&nbsp; PGB gedeclareerd t/m "+new Date(y,m-1,1).toLocaleDateString("nl-NL",{month:"long",year:"numeric"}); }catch(e){ return ""; } }
+  const [y,m]=k.split("-").map(Number), st=x.settings||{}, tar=+(st.tarief||window.PGB_START?.settings?.tarief||0), std=+(st.stdUren??2), days=x.months[k].days||{};
+  // bedrag van die maand, zoals de PGB-tool het rekent: uren per dag (standaard of afwijkend) × uurtarief, vanaf de startdatum
+  let s0=new Date(y,m-1,1); const e0=new Date(y,m,0); if(st.startdatum){ const p=st.startdatum.split("-").map(Number), sd=new Date(p[0],p[1]-1,p[2]); if(sd>s0&&sd<=e0) s0=sd; }
+  let h=0; for(let d=new Date(s0); d<=e0; d.setDate(d.getDate()+1)){ const ds=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); const v=days[ds]; h+= v&&v.h!=null? +v.h : std; }
+  const bedrag=Math.round(Math.round(h*100)/100*tar*100)/100;
+  return " &nbsp;·&nbsp; PGB gedeclareerd t/m "+new Date(y,m-1,1).toLocaleDateString("nl-NL",{month:"long",year:"numeric"})+(tar?" &nbsp;·&nbsp; "+eur(bedrag):""); }catch(e){ return ""; } }
 // Uren van de PGB-tool (pgb.html) voor deze maand: standaard uren per dag, plus afwijkingen.
 function pgbUren(){ try{ const x=JSON.parse(localStorage.getItem("pgb-livia-v1")||"null")||window.PGB_START||null; const st=x&&x.settings; if(!st||!st.stdUren) return null;
   const n=new Date(), y=n.getFullYear(), m=n.getMonth(), k=y+"-"+String(m+1).padStart(2,"0"), days=(x.months&&x.months[k]&&x.months[k].days)||{};
