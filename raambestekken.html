@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#05070d">
+<title>Raambestekken resultaat</title>
+<style>
+/* Financieel overzicht raambestekken (sci-fi stijl).
+   Gegevens komen NIET uit de broncode: ze worden ingelezen (JSON/CSV uit Afreken-check / Offerte-check)
+   en alleen op dit apparaat bewaard (localStorage). De repository kan openbaar zijn. */
+:root{--bg:#05070d;--panel:rgba(14,22,38,.78);--line:#1d3350;--ink:#d8ecff;--mut:#7d97b5;
+ --cyan:#36e2ff;--ok:#39ffa8;--bad:#ff4d6d;--warn:#ffc14d;--glow:0 0 18px rgba(54,226,255,.35)}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Segoe UI",Roboto,-apple-system,sans-serif;overflow-x:clip;
+ background-image:linear-gradient(rgba(54,226,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(54,226,255,.05) 1px,transparent 1px),
+ radial-gradient(ellipse at top,#0d1d38 0%,var(--bg) 70%);background-size:40px 40px,40px 40px,100% 100%;background-attachment:fixed;
+ padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+button,input,select{font:inherit;color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:16px 16px 80px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+header a{color:var(--cyan);text-decoration:none;font-size:22px}
+h1{margin:0;font-size:clamp(18px,3.2vw,26px);letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);text-shadow:var(--glow);flex:1}
+.mono{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
+.b{border:1px solid var(--cyan);background:rgba(54,226,255,.08);color:var(--cyan);border-radius:8px;padding:8px 12px;cursor:pointer;min-height:40px;letter-spacing:.05em}
+.b:hover{background:rgba(54,226,255,.18);box-shadow:var(--glow)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;position:relative;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.panel::before{content:"";position:absolute;inset:-1px;border-radius:14px;pointer-events:none;
+ background:linear-gradient(135deg,var(--cyan),transparent 30%,transparent 70%,var(--cyan)) border-box;
+ -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;border:1px solid transparent;opacity:.5}
+.lbl{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mut)}
+.demo{border:1px dashed var(--warn);color:var(--warn);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}
+.kpi .v{font-size:clamp(20px,3vw,28px);margin-top:4px}
+.pos{color:var(--ok);text-shadow:0 0 12px rgba(57,255,168,.35)}.neg{color:var(--bad);text-shadow:0 0 12px rgba(255,77,109,.4)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:14px}
+.rb{cursor:pointer;text-align:center;transition:transform .15s}
+.rb:hover{transform:translateY(-2px)}.rb.sel{box-shadow:0 0 0 1px var(--cyan),var(--glow)}
+.rb h3{margin:0 0 6px;font-size:15px;letter-spacing:.12em;text-transform:uppercase}
+.rb svg{width:150px;max-width:100%;height:auto;display:block;margin:4px auto}
+.rb .row{display:flex;justify-content:space-between;font-size:13px;color:var(--mut);margin-top:4px}
+.rb .row b{color:var(--ink);font-weight:500}
+.bars .bar{display:grid;grid-template-columns:minmax(90px,1.3fr) 3fr auto;gap:10px;align-items:center;margin:8px 0;font-size:13px}
+.track{height:14px;position:relative;background:rgba(125,151,181,.12);border-radius:7px;overflow:hidden}
+.track .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--mut)}
+.track .fill{position:absolute;top:2px;bottom:2px;border-radius:5px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left;white-space:normal}
+th{color:var(--mut);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.scroll{overflow-x:auto}
+.chip{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;border:1px solid currentColor}
+.two{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:900px){.two{grid-template-columns:1fr 1.4fr}}
+.muted{color:var(--mut)}
+@keyframes scan{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+.scan{position:fixed;left:0;right:0;height:120px;pointer-events:none;background:linear-gradient(transparent,rgba(54,226,255,.04),transparent);animation:scan 7s linear infinite}
+@media (prefers-reduced-motion:reduce){.scan{display:none}.rb{transition:none}}
+</style>
+</head>
+<body>
+<div class="scan" aria-hidden="true"></div>
+<div class="wrap">
+  <header>
+    <a href="./" aria-label="Terug naar dashboard">‹</a>
+    <h1>Raambestekken · Resultaat <span id="jaar"></span></h1>
+    <button class="b" id="btnImport">⇪ Inlezen</button>
+    <button class="b" id="btnExport">⇩ Export</button>
+    <input type="file" id="file" accept=".json,.csv,text/csv,application/json" hidden>
+  </header>
+  <div id="demo" class="demo" hidden>⚠ VOORBEELDCIJFERS — dit zijn geen echte bedragen. Lees een export uit de Afreken-check / Offerte-check in via “Inlezen”.</div>
+  <section class="kpis" id="kpis"></section>
+  <section class="grid" id="rbs"></section>
+  <section class="two">
+    <div class="panel"><div class="lbl">Resultaat per raambestek</div><div class="bars" id="bars"></div></div>
+    <div class="panel"><div class="lbl" id="detTitel">Werken</div><div class="scroll"><table id="det"></table></div></div>
+  </section>
+  <p class="muted" style="font-size:12px;margin-top:14px">Bronnen: afgerekend → Afreken-check, offerte → Offerte-check, kosten → Bouw Info Systeem (BIS). Resultaat = afgerekend − kosten. Marge = resultaat ÷ afgerekend. Offerte-afwijking = afgerekend − offertebedrag.
+  Gegevens blijven op dit apparaat. Laatste inlees: <span id="stamp" class="mono">—</span></p>
+</div>
+<script src="slot.js"></script>
+<script>
+"use strict";
+const KEY="raambestekken-v1";
+const RAAM=["Dordrecht","Zwijndrecht","Hendrik-Ido-Ambacht","Alblasserdam","Papendrecht"];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const eur=n=>new Intl.NumberFormat("nl-NL",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(n||0);
+const pct=n=>isFinite(n)?(n*100).toFixed(1).replace(".",",")+"%":"—";
+const num=v=>{ if(typeof v==="number") return v; const s=String(v??"").trim().replace(/[€\s]/g,""); if(!s) return 0;
+  let t; if(/,\d{1,2}$/.test(s)) t=s.replace(/\./g,"").replace(",",".");          // 12.000,50
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(s)) t=s.replace(/\./g,"");                 // 13.000
+  else t=s.replace(/,/g,"");                                                         // 13000 / 13,000 / 13.5
+  const n=parseFloat(t); return isNaN(n)?0:n; };
+
+/* Datamodel: { jaar, bijgewerkt, werken:[{raambestek, nr, omschrijving, status, offerte, afgerekend, kosten}] } */
+function demo(){
+  let seed=7; const r=()=>(seed=(seed*9301+49297)%233280)/233280;
+  const werken=[]; const oms=["Boomonderhoud","Snoeiwerk","Kap & herplant","Stobben frezen","Riolering","Bestrating","Groenonderhoud"];
+  RAAM.forEach((rb,i)=>{ for(let k=1;k<=4+(i%3);k++){ const off=Math.round(20000+r()*90000); const afg=Math.round(off*(0.85+r()*0.3));
+    werken.push({raambestek:rb,nr:`${2027}-${String(i+1).padStart(2,"0")}${String(k).padStart(2,"0")}`,omschrijving:oms[Math.floor(r()*oms.length)],
+      status:r()>.35?"Afgerekend":"Lopend",offerte:off,afgerekend:afg,kosten:Math.round(afg*(0.78+r()*0.32))}); } });
+  return {jaar:2027,bijgewerkt:null,demo:true,werken};
+}
+function load(){ try{ const d=JSON.parse(localStorage.getItem(KEY)||"null"); if(d&&Array.isArray(d.werken)) return d; }catch(e){} return demo(); }
+function save(d){ try{ localStorage.setItem(KEY,JSON.stringify(d)); }catch(e){ alert("Opslaan op dit apparaat lukt niet."); } }
+let data=load(), sel=null;
+
+function sum(ws){ const a=ws.reduce((s,w)=>s+num(w.afgerekend),0), k=ws.reduce((s,w)=>s+num(w.kosten),0), o=ws.reduce((s,w)=>s+num(w.offerte),0);
+  return {afg:a,kos:k,off:o,res:a-k,marge:a?(a-k)/a:NaN,aantal:ws.length,verlies:ws.filter(w=>num(w.afgerekend)-num(w.kosten)<0).length}; }
+const cls=n=>n<0?"neg":"pos";
+
+function gauge(m){ // marge -20%..+30% op een boog
+  const lo=-.2,hi=.3, t=isFinite(m)?Math.max(0,Math.min(1,(m-lo)/(hi-lo))):0, R=60, C=Math.PI*R;
+  const col=!isFinite(m)?"#7d97b5":m<0?"var(--bad)":m<.08?"var(--warn)":"var(--ok)";
+  return `<svg viewBox="0 0 150 90" role="img" aria-label="Marge ${pct(m)}">
+    <path d="M15 80 A60 60 0 0 1 135 80" fill="none" stroke="#1d3350" stroke-width="10" stroke-linecap="round"/>
+    <path d="M15 80 A60 60 0 0 1 135 80" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round"
+      stroke-dasharray="${C*t} ${C}" style="filter:drop-shadow(0 0 6px ${col})"/>
+    <text x="75" y="72" text-anchor="middle" fill="${col}" font-size="20" class="mono">${pct(m)}</text>
+    <text x="75" y="88" text-anchor="middle" fill="#7d97b5" font-size="9" letter-spacing="2">MARGE</text></svg>`;
+}
+
+function render(){
+  $("jaar").textContent=data.jaar||""; $("demo").hidden=!data.demo;
+  $("stamp").textContent=data.bijgewerkt?new Date(data.bijgewerkt).toLocaleString("nl-NL"):"—";
+  const namen=[...new Set([...RAAM,...data.werken.map(w=>w.raambestek)])];
+  const per=namen.map(n=>({n,...sum(data.werken.filter(w=>w.raambestek===n))}));
+  const T=sum(data.werken);
+  $("kpis").innerHTML=[["Totaal resultaat",`<span class="${cls(T.res)}">${eur(T.res)}</span>`],["Afgerekend",eur(T.afg)],["Kosten",eur(T.kos)],
+    ["Marge",`<span class="${cls(T.res)}">${pct(T.marge)}</span>`],["Werken met verlies",`<span class="${T.verlies?"neg":"pos"}">${T.verlies} / ${T.aantal}</span>`]]
+    .map(([l,v])=>`<div class="panel kpi"><div class="lbl">${l}</div><div class="v mono">${v}</div></div>`).join("");
+  $("rbs").innerHTML=per.map(p=>`<div class="panel rb ${sel===p.n?"sel":""}" data-n="${esc(p.n)}" tabindex="0" role="button">
+    <h3>${esc(p.n)}</h3>${gauge(p.marge)}
+    <div class="row"><span>Resultaat</span><b class="mono ${cls(p.res)}">${eur(p.res)}</b></div>
+    <div class="row"><span>Afgerekend</span><b class="mono">${eur(p.afg)}</b></div>
+    <div class="row"><span>Werken</span><b class="mono">${p.aantal}${p.verlies?` · <span class="neg">${p.verlies} verlies</span>`:""}</b></div></div>`).join("");
+  $("rbs").querySelectorAll(".rb").forEach(el=>{ const f=()=>{ sel=sel===el.dataset.n?null:el.dataset.n; render(); };
+    el.onclick=f; el.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); f(); } }; });
+  const max=Math.max(1,...per.map(p=>Math.abs(p.res)));
+  $("bars").innerHTML=per.map(p=>{ const w=Math.abs(p.res)/max*50, col=p.res<0?"var(--bad)":"var(--ok)";
+    return `<div class="bar"><span>${esc(p.n)}</span><div class="track"><div class="mid"></div>
+      <div class="fill" style="${p.res<0?`right:50%`:`left:50%`};width:${w}%;background:${col};box-shadow:0 0 10px ${col}"></div></div>
+      <span class="mono ${cls(p.res)}">${eur(p.res)}</span></div>`; }).join("");
+  const ws=data.werken.filter(w=>!sel||w.raambestek===sel).map(w=>({...w,res:num(w.afgerekend)-num(w.kosten)})).sort((a,b)=>a.res-b.res);
+  $("detTitel").textContent=sel?`Werken · ${sel}`:"Alle werken (slechtste eerst)";
+  $("det").innerHTML=`<thead><tr><th>Werk</th><th>Omschrijving</th><th>Offerte</th><th>Afgerekend</th><th>Kosten</th><th>Resultaat</th><th>Marge</th></tr></thead><tbody>`+
+    ws.map(w=>{ const afw=num(w.afgerekend)-num(w.offerte);
+      return `<tr><td class="mono">${esc(w.nr)}${sel?"":`<br><span class="muted">${esc(w.raambestek)}</span>`}</td>
+      <td>${esc(w.omschrijving)} ${w.status?`<span class="chip muted">${esc(w.status)}</span>`:""}</td>
+      <td class="mono">${eur(w.offerte)}</td><td class="mono">${eur(w.afgerekend)}<br><span class="${afw<0?"neg":"muted"}" style="font-size:11px">${afw>=0?"+":""}${eur(afw)}</span></td>
+      <td class="mono">${eur(w.kosten)}</td><td class="mono ${cls(w.res)}">${eur(w.res)}</td>
+      <td class="mono ${cls(w.res)}">${pct(num(w.afgerekend)?w.res/num(w.afgerekend):NaN)}</td></tr>`; }).join("")+"</tbody>";
+}
+
+/* Inlezen: JSON (zelfde datamodel) of CSV met kolommen:
+   raambestek;nr;omschrijving;status;offerte;afgerekend;kosten   (scheidingsteken ; of ,) */
+function parseCSV(t){
+  const lines=t.replace(/^﻿/,"").split(/\r?\n/).filter(l=>l.trim()); if(lines.length<2) throw new Error("Leeg CSV-bestand");
+  const sep=(lines[0].match(/;/g)||[]).length>=(lines[0].match(/,/g)||[]).length?";":",";
+  const split=l=>{ const out=[]; let cur="",q=false; for(const c of l){ if(c==='"') q=!q; else if(c===sep&&!q){ out.push(cur); cur=""; } else cur+=c; } out.push(cur); return out.map(s=>s.trim()); };
+  const h=split(lines[0]).map(s=>s.toLowerCase());
+  const need=["raambestek","nr","offerte","afgerekend","kosten"], miss=need.filter(k=>!h.includes(k));
+  if(miss.length) throw new Error("Kolommen ontbreken: "+miss.join(", "));
+  return lines.slice(1).map(l=>{ const c=split(l), o={}; h.forEach((k,i)=>o[k]=c[i]); ["offerte","afgerekend","kosten"].forEach(k=>o[k]=num(o[k])); return o; });
+}
+$("btnImport").onclick=()=>$("file").click();
+$("file").onchange=async e=>{ const f=e.target.files[0]; if(!f) return;
+  try{ const t=await f.text(); let d;
+    if(/\.json$/i.test(f.name)||t.trim().startsWith("{")){ d=JSON.parse(t); if(!Array.isArray(d.werken)) throw new Error("JSON mist 'werken'"); }
+    else d={jaar:2027,werken:parseCSV(t)};
+    d.werken.forEach(w=>["offerte","afgerekend","kosten"].forEach(k=>w[k]=num(w[k])));
+    d.demo=false; d.bijgewerkt=Date.now(); d.jaar=d.jaar||2027; data=d; save(d); sel=null; render();
+  }catch(err){ alert("Inlezen mislukt: "+err.message); } e.target.value=""; };
+$("btnExport").onclick=()=>{ const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"})); a.download=`raambestekken-${data.jaar||2027}.json`; a.click(); };
+window.addEventListener("storage",e=>{ if(e.key===KEY){ data=load(); render(); } });
+render();
+</script>
+</body>
+</html>
