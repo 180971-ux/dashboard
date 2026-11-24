@@ -56,10 +56,50 @@ th{color:var(--mut);font-weight:500;font-size:11px;letter-spacing:.12em;text-tra
 .muted{color:var(--mut)}
 @keyframes scan{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
 .scan{position:fixed;left:0;right:0;height:120px;pointer-events:none;background:linear-gradient(transparent,rgba(54,226,255,.04),transparent);animation:scan 7s linear infinite}
-@media (prefers-reduced-motion:reduce){.scan{display:none}.rb{transition:none}}
+/* ===== Flitsend (1.1) ===== */
+@property --a{syntax:"<angle>";inherits:false;initial-value:0deg}
+#stars{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:-1}
+.panel{overflow:hidden}
+.panel::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:14px;
+ background:linear-gradient(115deg,transparent 40%,rgba(54,226,255,.07) 50%,transparent 60%) 0 0/250% 100%;animation:sheen 6s linear infinite}
+@keyframes sheen{from{background-position:150% 0}to{background-position:-100% 0}}
+.rb::before,.kpi::before{background:conic-gradient(from var(--a),transparent 0 70%,var(--cyan) 85%,#fff 88%,transparent 92%) border-box!important;
+ opacity:.9!important;animation:spin 5s linear infinite}
+.rb.loss::before{background:conic-gradient(from var(--a),transparent 0 70%,var(--bad) 85%,#fff 88%,transparent 92%) border-box!important}
+@keyframes spin{to{--a:360deg}}
+.rb:hover{box-shadow:0 0 0 1px var(--cyan),0 0 30px rgba(54,226,255,.45),inset 0 0 30px rgba(54,226,255,.12)}
+.ring{transform-origin:75px 80px;animation:rot 14s linear infinite}
+.ring2{transform-origin:75px 80px;animation:rot 9s linear infinite reverse}
+@keyframes rot{to{transform:rotate(360deg)}}
+.arc{animation:fillArc 1.6s cubic-bezier(.2,.8,.2,1) both}
+@keyframes fillArc{from{stroke-dasharray:0 999}}
+.tip{animation:blink 1.2s ease-in-out infinite}
+.alarm{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bad);box-shadow:0 0 10px var(--bad);margin-right:6px;animation:blink .9s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+.rb.loss{animation:alarmGlow 2.4s ease-in-out infinite}
+@keyframes alarmGlow{50%{box-shadow:0 0 26px rgba(255,77,109,.35),inset 0 0 18px rgba(255,77,109,.12)}}
+.track .fill{animation:grow 1.4s cubic-bezier(.2,.8,.2,1) both;animation-delay:inherit}
+@keyframes grow{from{width:0}}
+.track .fill::after{content:"";position:absolute;inset:0;border-radius:5px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent) 0 0/40% 100% no-repeat;animation:flow 2.2s linear infinite}
+@keyframes flow{from{background-position:-40% 0}to{background-position:140% 0}}
+h1{animation:flicker 6s infinite}
+@keyframes flicker{0%,93%,100%{opacity:1;transform:none}94%{opacity:.4;transform:translateX(2px) skewX(-8deg)}95%{opacity:1;transform:translateX(-2px)}96%{opacity:.6}}
+.status{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.2em;color:var(--ok);width:100%;order:9}
+.status i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok);animation:blink 1.4s infinite}
+.ticker{overflow:hidden;white-space:nowrap;border-block:1px solid var(--line);margin:0 0 14px;padding:6px 0;font-size:12px;letter-spacing:.08em;
+ mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+.ticker span{display:inline-block;padding-left:100%;animation:tick 40s linear infinite}
+@keyframes tick{to{transform:translateX(-100%)}}
+.boot .panel{animation:boot .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes boot{from{opacity:0;transform:translateY(18px) scale(.97);filter:blur(6px)}}
+tbody tr{transition:background .2s}tbody tr:hover{background:rgba(54,226,255,.07)}
+tr.lossrow td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+@media (prefers-reduced-motion:reduce){.scan,#stars{display:none}.rb{transition:none}
+ *,*::before,*::after{animation:none!important}.ticker span{padding-left:0;white-space:normal}}
 </style>
 </head>
 <body>
+<canvas id="stars" aria-hidden="true"></canvas>
 <div class="scan" aria-hidden="true"></div>
 <div class="wrap">
   <header>
@@ -67,9 +107,11 @@ th{color:var(--mut);font-weight:500;font-size:11px;letter-spacing:.12em;text-tra
     <h1>Raambestekken · Resultaat <span id="jaar"></span></h1>
     <button class="b" id="btnImport">⇪ Inlezen</button>
     <button class="b" id="btnExport">⇩ Export</button>
+    <div class="status mono"><i></i><span id="clock">SYSTEEM ONLINE</span></div>
     <input type="file" id="file" accept=".json,.csv,text/csv,application/json" hidden>
   </header>
   <div id="demo" class="demo" hidden>⚠ VOORBEELDCIJFERS — dit zijn geen echte bedragen. Lees een export uit de Afreken-check / Offerte-check in via “Inlezen”.</div>
+  <div class="ticker mono" aria-hidden="true"><span id="ticker"></span></div>
   <section class="kpis" id="kpis"></section>
   <section class="grid" id="rbs"></section>
   <section class="two">
@@ -114,10 +156,17 @@ const cls=n=>n<0?"neg":"pos";
 function gauge(m){ // marge -20%..+30% op een boog
   const lo=-.2,hi=.3, t=isFinite(m)?Math.max(0,Math.min(1,(m-lo)/(hi-lo))):0, R=60, C=Math.PI*R;
   const col=!isFinite(m)?"#7d97b5":m<0?"var(--bad)":m<.08?"var(--warn)":"var(--ok)";
-  return `<svg viewBox="0 0 150 90" role="img" aria-label="Marge ${pct(m)}">
+  const ang=Math.PI*(1-t), tx=75+R*Math.cos(ang), ty=80-R*Math.sin(ang);
+  const ticks=Array.from({length:11},(_,i)=>{ const a=Math.PI*i/10, c=Math.cos(a), s=Math.sin(a);
+    return `<line x1="${75+70*c}" y1="${80-70*s}" x2="${75+(i%5?66:63)*c}" y2="${80-(i%5?66:63)*s}" stroke="#36e2ff" stroke-opacity=".45" stroke-width="1"/>`; }).join("");
+  return `<svg viewBox="0 -4 150 94" role="img" aria-label="Marge ${pct(m)}">
+    <circle class="ring" cx="75" cy="80" r="74" fill="none" stroke="#36e2ff" stroke-opacity=".25" stroke-dasharray="2 6"/>
+    <circle class="ring2" cx="75" cy="80" r="50" fill="none" stroke="#36e2ff" stroke-opacity=".18" stroke-dasharray="18 10 2 10"/>
+    ${ticks}
     <path d="M15 80 A60 60 0 0 1 135 80" fill="none" stroke="#1d3350" stroke-width="10" stroke-linecap="round"/>
-    <path d="M15 80 A60 60 0 0 1 135 80" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round"
+    <path class="arc" d="M15 80 A60 60 0 0 1 135 80" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round"
       stroke-dasharray="${C*t} ${C}" style="filter:drop-shadow(0 0 6px ${col})"/>
+    ${t>0?`<circle class="tip" cx="${tx}" cy="${ty}" r="4" fill="#fff" style="filter:drop-shadow(0 0 6px ${col})"/>`:""}
     <text x="75" y="72" text-anchor="middle" fill="${col}" font-size="20" class="mono">${pct(m)}</text>
     <text x="75" y="88" text-anchor="middle" fill="#7d97b5" font-size="9" letter-spacing="2">MARGE</text></svg>`;
 }
@@ -128,26 +177,32 @@ function render(){
   const namen=[...new Set([...RAAM,...data.werken.map(w=>w.raambestek)])];
   const per=namen.map(n=>({n,...sum(data.werken.filter(w=>w.raambestek===n))}));
   const T=sum(data.werken);
-  $("kpis").innerHTML=[["Totaal resultaat",`<span class="${cls(T.res)}">${eur(T.res)}</span>`],["Afgerekend",eur(T.afg)],["Kosten",eur(T.kos)],
-    ["Marge",`<span class="${cls(T.res)}">${pct(T.marge)}</span>`],["Werken met verlies",`<span class="${T.verlies?"neg":"pos"}">${T.verlies} / ${T.aantal}</span>`]]
+  const cnt=(v,f)=>`<span data-count="${v}" data-fmt="${f}">${f==="eur"?eur(v):pct(v)}</span>`;
+  $("kpis").innerHTML=[["Totaal resultaat",`<span class="${cls(T.res)}">${cnt(T.res,"eur")}</span>`],["Afgerekend",cnt(T.afg,"eur")],["Kosten",cnt(T.kos,"eur")],
+    ["Marge",`<span class="${cls(T.res)}">${isFinite(T.marge)?cnt(T.marge,"pct"):"—"}</span>`],["Werken met verlies",`<span class="${T.verlies?"neg":"pos"}">${T.verlies?'<i class="alarm"></i>':""}${T.verlies} / ${T.aantal}</span>`]]
     .map(([l,v])=>`<div class="panel kpi"><div class="lbl">${l}</div><div class="v mono">${v}</div></div>`).join("");
-  $("rbs").innerHTML=per.map(p=>`<div class="panel rb ${sel===p.n?"sel":""}" data-n="${esc(p.n)}" tabindex="0" role="button">
+  $("rbs").innerHTML=per.map(p=>`<div class="panel rb ${sel===p.n?"sel":""} ${p.res<0||p.verlies?"loss":""}" data-n="${esc(p.n)}" tabindex="0" role="button">
     <h3>${esc(p.n)}</h3>${gauge(p.marge)}
     <div class="row"><span>Resultaat</span><b class="mono ${cls(p.res)}">${eur(p.res)}</b></div>
     <div class="row"><span>Afgerekend</span><b class="mono">${eur(p.afg)}</b></div>
     <div class="row"><span>Werken</span><b class="mono">${p.aantal}${p.verlies?` · <span class="neg">${p.verlies} verlies</span>`:""}</b></div></div>`).join("");
   $("rbs").querySelectorAll(".rb").forEach(el=>{ const f=()=>{ sel=sel===el.dataset.n?null:el.dataset.n; render(); };
     el.onclick=f; el.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); f(); } }; });
+  const slecht=data.werken.map(w=>({...w,r:num(w.afgerekend)-num(w.kosten)})).filter(w=>w.r<0).sort((a,b)=>a.r-b.r);
+  $("ticker").textContent=[`◆ ${data.demo?"VOORBEELDCIJFERS":"LIVE"} · ${per.length} RAAMBESTEKKEN · ${T.aantal} WERKEN · RESULTAAT ${eur(T.res)} · MARGE ${pct(T.marge)}`,
+    ...per.map(p=>`${p.n.toUpperCase()} ${p.res<0?"▼":"▲"} ${eur(p.res)}`),
+    ...slecht.map(w=>`⚠ VERLIES ${w.nr} ${w.raambestek} ${eur(w.r)}`)].join("   ·   ");
   const max=Math.max(1,...per.map(p=>Math.abs(p.res)));
   $("bars").innerHTML=per.map(p=>{ const w=Math.abs(p.res)/max*50, col=p.res<0?"var(--bad)":"var(--ok)";
-    return `<div class="bar"><span>${esc(p.n)}</span><div class="track"><div class="mid"></div>
+    return `<div class="bar" style="animation-delay:${.6+per.indexOf(p)*.12}s"><span>${esc(p.n)}</span><div class="track"><div class="mid"></div>
       <div class="fill" style="${p.res<0?`right:50%`:`left:50%`};width:${w}%;background:${col};box-shadow:0 0 10px ${col}"></div></div>
       <span class="mono ${cls(p.res)}">${eur(p.res)}</span></div>`; }).join("");
+  document.querySelectorAll(".panel").forEach((el,i)=>el.style.animationDelay=`${Math.min(i,12)*.07}s`);
   const ws=data.werken.filter(w=>!sel||w.raambestek===sel).map(w=>({...w,res:num(w.afgerekend)-num(w.kosten)})).sort((a,b)=>a.res-b.res);
   $("detTitel").textContent=sel?`Werken · ${sel}`:"Alle werken (slechtste eerst)";
   $("det").innerHTML=`<thead><tr><th>Werk</th><th>Omschrijving</th><th>Offerte</th><th>Afgerekend</th><th>Kosten</th><th>Resultaat</th><th>Marge</th></tr></thead><tbody>`+
     ws.map(w=>{ const afw=num(w.afgerekend)-num(w.offerte);
-      return `<tr><td class="mono">${esc(w.nr)}${sel?"":`<br><span class="muted">${esc(w.raambestek)}</span>`}</td>
+      return `<tr class="${w.res<0?"lossrow":""}"><td class="mono">${w.res<0?'<i class="alarm"></i>':""}${esc(w.nr)}${sel?"":`<br><span class="muted">${esc(w.raambestek)}</span>`}</td>
       <td>${esc(w.omschrijving)} ${w.status?`<span class="chip muted">${esc(w.status)}</span>`:""}</td>
       <td class="mono">${eur(w.offerte)}</td><td class="mono">${eur(w.afgerekend)}<br><span class="${afw<0?"neg":"muted"}" style="font-size:11px">${afw>=0?"+":""}${eur(afw)}</span></td>
       <td class="mono">${eur(w.kosten)}</td><td class="mono ${cls(w.res)}">${eur(w.res)}</td>
@@ -171,12 +226,28 @@ $("file").onchange=async e=>{ const f=e.target.files[0]; if(!f) return;
     if(/\.json$/i.test(f.name)||t.trim().startsWith("{")){ d=JSON.parse(t); if(!Array.isArray(d.werken)) throw new Error("JSON mist 'werken'"); }
     else d={jaar:2027,werken:parseCSV(t)};
     d.werken.forEach(w=>["offerte","afgerekend","kosten"].forEach(k=>w[k]=num(w[k])));
-    d.demo=false; d.bijgewerkt=Date.now(); d.jaar=d.jaar||2027; data=d; save(d); sel=null; render();
+    d.demo=false; d.bijgewerkt=Date.now(); d.jaar=d.jaar||2027; data=d; save(d); sel=null; render(); telOp();
   }catch(err){ alert("Inlezen mislukt: "+err.message); } e.target.value=""; };
 $("btnExport").onclick=()=>{ const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"})); a.download=`raambestekken-${data.jaar||2027}.json`; a.click(); };
 window.addEventListener("storage",e=>{ if(e.key===KEY){ data=load(); render(); } });
-render();
+const rustig=matchMedia("(prefers-reduced-motion: reduce)").matches;
+function telOp(){ if(rustig) return; document.querySelectorAll("[data-count]").forEach(el=>{ const v=+el.dataset.count, f=el.dataset.fmt, t0=performance.now(), d=1600;
+  const step=now=>{ const k=Math.min(1,(now-t0)/d), e=1-Math.pow(1-k,3), x=v*e; el.textContent=f==="eur"?eur(x):pct(x); if(k<1) requestAnimationFrame(step); };
+  requestAnimationFrame(step); }); }
+function sterren(){ if(rustig) return; const c=$("stars"), g=c.getContext("2d"); let W,H,pts=[];
+  const size=()=>{ const r=devicePixelRatio||1; W=c.width=innerWidth*r; H=c.height=innerHeight*r;
+    pts=Array.from({length:Math.round(innerWidth*innerHeight/9000)},()=>({x:Math.random()*W,y:Math.random()*H,z:Math.random()*.8+.2})); };
+  size(); addEventListener("resize",size);
+  (function f(){ g.clearRect(0,0,W,H); for(const p of pts){ p.y+=p.z*.35; if(p.y>H){ p.y=0; p.x=Math.random()*W; }
+      g.fillStyle=`rgba(${p.z>.8?"57,255,168":"54,226,255"},${p.z*.7})`; g.fillRect(p.x,p.y,p.z*2,p.z*2); }
+    for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){ const a=pts[i],b=pts[j],dx=a.x-b.x,dy=a.y-b.y,d=dx*dx+dy*dy;
+      if(d<9000*(devicePixelRatio||1)){ g.strokeStyle=`rgba(54,226,255,${.08*(1-d/(9000*(devicePixelRatio||1)))})`; g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.stroke(); } }
+    if(document.visibilityState==="visible") requestAnimationFrame(f); else document.addEventListener("visibilitychange",()=>requestAnimationFrame(f),{once:true}); })(); }
+setInterval(()=>{ $("clock").textContent="SYSTEEM ONLINE · "+new Date().toLocaleTimeString("nl-NL"); },1000);
+document.body.classList.add("boot");
+render(); telOp(); sterren();
+setTimeout(()=>document.body.classList.remove("boot"),2500);
 </script>
 </body>
 </html>
