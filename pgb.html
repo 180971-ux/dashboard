@@ -305,7 +305,7 @@ function changed(){S.updated=Date.now();saveLocal();clearTimeout(saveT);saveT=se
 /* OneDrive via Microsoft Graph – zelfde app-registratie en login als het privé-dashboard (pd-client) */
 const od={app:null,acct:null,etag:null,
  scopes:['Files.ReadWrite.AppFolder'],
- cid(){let c='';try{c=localStorage.getItem('pd-client')||''}catch(e){}return(c||S.settings.clientId||'').trim()},
+ cid(){let c='';try{c=localStorage.getItem('pd-client')||''}catch(e){}return(c||S.settings.clientId||'956f19d7-ab80-4f01-a3fe-a83d517e0b44').trim()},
  home(){return location.href.split('#')[0].split('?')[0].replace(/[^/]*$/,'')},
  ready(){return !!(this.app&&this.acct)},
  base(){return'https://graph.microsoft.com/v1.0/me/drive/special/approot:/'+encodeURIComponent(S.settings.odMap||'PGB Livia')},
