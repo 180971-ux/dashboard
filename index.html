@@ -433,7 +433,7 @@ button.b.sec{background:#f3e4ec;color:#5a2f4d}
 <script>
 "use strict";
 /* ============ Config ============ */
-const APP_VERSION = "1.8.1";          // ophogen bij elke nieuwe versie
+const APP_VERSION = "1.8.2";          // ophogen bij elke nieuwe versie
 const APP_DATUM = "24-11-2026";
 const DEFAULT_CLIENT_ID = "956f19d7-ab80-4f01-a3fe-a83d517e0b44";               // optioneel hier vast invullen
 const SCOPES = ["Files.ReadWrite.AppFolder"];
@@ -1128,7 +1128,6 @@ function pgbUren(){ try{ const x=JSON.parse(localStorage.getItem("pgb-livia-v1")
   return Math.round(h*100)/100; }catch(e){ return null; } }
 const TOOLS = {
   pgb:{ ic:"🕒", kleur:"#c0628a", naam:"PGB Livia", url:"pgb.html", sub:()=>{ const u=pgbUren(); return u==null?"Uren & VGZ-declaratie":`Deze maand: ${num2(u)} uur`; } },
-  raam:{ ic:"📊", kleur:"#2f9fc0", naam:"Raambestekken", url:"raambestekken.html", sub:()=>"Winst & verlies 2026 · 2027" },
   assistent:{ ic:"💬", kleur:"#8f7ad6", naam:"Assistent", sub:()=>"Vraag maar raak" }
 };
 const DEFAULT_CATS = [ {id:"c-livia",naam:"Livia",tools:["pgb"]}, {id:"c-anita",naam:"Anita",tools:[]}, {id:"c-edward",naam:"Edward",tools:["spaans","assistent"]} ];
