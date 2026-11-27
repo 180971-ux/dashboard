@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Offertetool openbare ruimte</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+/* Offertetool 1.0 (prototype) — MVI-plan Hendrik-Ido-Ambacht.
+   Kaart: PDOK (BRT-achtergrondkaart + luchtfoto), adres: PDOK Locatieserver. Geen API-sleutel nodig.
+   PRIJZEN hieronder zijn TESTPRIJZEN tot het nieuwe raambestek binnen is. */
+:root{
+  --bg:#f3f5f8;--card:#fff;--ink:#1b2430;--mut:#667180;--line:#e2e7ee;
+  --acc:#1f6f5c;--accbg:#e4f2ee;--navy:#17324d;--warn:#b8620e;--warnbg:#fff2e3;--bad:#b3261e;--r:14px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11161c;--card:#1a2129;--ink:#e8edf2;--mut:#9aa6b2;--line:#2b3540;
+  --acc:#5cc3a6;--accbg:#173029;--navy:#0d1b29;--warn:#f0b45c;--warnbg:#33260f;--bad:#f28b82}}
+:root[data-theme="dark"]{--bg:#11161c;--card:#1a2129;--ink:#e8edf2;--mut:#9aa6b2;--line:#2b3540;
+  --acc:#5cc3a6;--accbg:#173029;--navy:#0d1b29;--warn:#f0b45c;--warnbg:#33260f;--bad:#f28b82}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{background:var(--navy);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:17px;margin:0;font-weight:600}
+header .tag{font-size:11px;background:#ffffff22;padding:2px 8px;border-radius:99px}
+header .who{margin-left:auto;font-size:13px;opacity:.85}
+.wrap{display:grid;grid-template-columns:minmax(320px,440px) 1fr;gap:14px;padding:14px;max-width:1400px;margin:0 auto}
+@media (max-width:860px){.wrap{grid-template-columns:1fr;padding:12px 16px}#map{height:300px!important}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+#map{height:calc(100vh - 120px);min-height:380px;border-radius:var(--r);border:1px solid var(--line)}
+.mapcol{position:relative}
+.maptools{position:absolute;z-index:500;top:10px;right:10px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.steps{display:flex;gap:4px;margin-bottom:14px}
+.steps span{flex:1;height:4px;border-radius:9px;background:var(--line)}
+.steps span.on{background:var(--acc)}
+h2{font-size:18px;margin:0 0 4px}
+p.sub{margin:0 0 14px;color:var(--mut);font-size:14px}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 0}
+input,select{width:100%;font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);margin-top:3px}
+.b{font:inherit;font-size:15px;border:0;border-radius:10px;padding:10px 14px;background:var(--acc);color:#fff;cursor:pointer}
+.b.sec{background:var(--accbg);color:var(--ink)}
+.b.sm{font-size:13px;padding:7px 10px}
+.b:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.opt{display:flex;gap:12px;align-items:center;width:100%;text-align:left;margin-top:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:12px 14px;font:inherit;cursor:pointer}
+.opt:hover{border-color:var(--acc)}
+.opt .ic{font-size:22px;width:28px;text-align:center}
+.opt small{display:block;color:var(--mut)}
+.hits{margin-top:6px}
+.hits button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;color:var(--ink);font:inherit;padding:8px 4px;cursor:pointer}
+.hits button:hover{background:var(--accbg)}
+.note{font-size:13px;padding:10px 12px;border-radius:10px;background:var(--accbg);margin-top:12px}
+.note.warn{background:var(--warnbg)}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:12px}
+td.n,th.n{text-align:right;white-space:nowrap}
+tr.tot td{font-weight:700;border-bottom:0}
+.code{color:var(--mut);font-size:11px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mvi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.mvi div{background:var(--accbg);border-radius:10px;padding:8px;text-align:center}
+.mvi b{display:block;font-size:18px}.mvi span{font-size:11px;color:var(--mut)}
+.ro{font-size:12px;color:var(--mut)}
+@media print{header,.mapcol,.row,.steps,.noprint{display:none!important}.wrap{display:block;padding:0}.card{border:0}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Offertetool openbare ruimte</h1><span class="tag">Prototype 1.0 · testprijzen</span>
+  <span class="who" id="who"></span>
+</header>
+<div class="wrap">
+  <section class="card" id="panel"></section>
+  <section class="mapcol">
+    <div id="map"></div>
+    <div class="maptools">
+      <button class="b sm sec" id="btnLaag">Luchtfoto</button>
+      <button class="b sm" id="btnTeken" style="display:none">✏️ Vlak tekenen</button>
+      <button class="b sm sec" id="btnWis" style="display:none">Wis vlak</button>
+    </div>
+  </section>
+</div>
+<script>
+/* ================== 1. PRIJZEN (TEST) ==================
+   Eén bron voor alle eenheidsprijzen. Na ontvangst raambestek: alleen deze tabel vervangen.
+   code = postnummer zoals straks in het raambestek (RAW-systematiek). */
+const PRIJS_GELDIG = "TESTPRIJZEN — niet gebruiken voor echte offertes";
+const PRIJZEN = {
+  KLIC:      {code:"P-001", oms:"KLIC-melding en oriëntatie kabels/leidingen", eh:"st", p:95},
+  OPBREKEN:  {code:"P-010", oms:"Opnemen elementenverharding, sorteren en in depot", eh:"m²", p:6.50},
+  OPBR_ASF:  {code:"P-011", oms:"Frezen/opbreken asfaltverharding incl. afvoer", eh:"m²", p:14.00},
+  BAND_OPN:  {code:"P-020", oms:"Opnemen opsluitband/trottoirband", eh:"m", p:5.50},
+  BAND_INR:  {code:"P-021", oms:"Leveren en plaatsen inritband / verlaagde band", eh:"m", p:42.00},
+  BAND_HER:  {code:"P-022", oms:"Herplaatsen bestaande band", eh:"m", p:16.00},
+  ONTGRAVEN: {code:"P-030", oms:"Ontgraven grond (cunet)", eh:"m³", p:9.00},
+  AFVOER:    {code:"P-031", oms:"Afvoeren en verwerken vrijkomende grond", eh:"m³", p:22.00},
+  ZAND:      {code:"P-040", oms:"Leveren en aanbrengen straatzand / ophoging", eh:"m³", p:28.00},
+  FUNDERING: {code:"P-041", oms:"Leveren en aanbrengen menggranulaat fundering", eh:"m³", p:38.00},
+  STR_HER:   {code:"P-050", oms:"Herstraten met vrijgekomen materiaal", eh:"m²", p:17.50},
+  STR_NIEUW: {code:"P-051", oms:"Bestraten met nieuw materiaal (excl. levering)", eh:"m²", p:15.00},
+  LEV_TEGEL: {code:"P-060", oms:"Leveren betontegels 30×30", eh:"m²", p:13.00},
+  LEV_KLINK: {code:"P-061", oms:"Leveren betonklinkers", eh:"m²", p:19.00},
+  LEV_INRIT: {code:"P-062", oms:"Leveren inritelementen (dikte 10 cm)", eh:"m²", p:24.00},
+  ASFALT:    {code:"P-070", oms:"Leveren en aanbrengen asfalt deklaag", eh:"m²", p:32.00},
+  AFV_OUD:   {code:"P-080", oms:"Afvoeren afgekeurd verhardingsmateriaal", eh:"m²", p:4.50},
+  MARK_NW:   {code:"P-090", oms:"Aanbrengen markering (thermoplast, 10 cm)", eh:"m", p:6.80},
+  MARK_VAK:  {code:"P-091", oms:"Aanbrengen parkeervakmarkering / P-symbool", eh:"st", p:85.00},
+  MARK_VERW: {code:"P-092", oms:"Verwijderen bestaande markering", eh:"m", p:4.20},
+  VM_WVK:    {code:"V-100", oms:"Werkvakafzetting trottoir (CROW 96b)", eh:"dag", p:65.00},
+  VM_HALF:   {code:"V-110", oms:"Afzetting halve rijbaan incl. bebording", eh:"dag", p:240.00},
+  VM_OML:    {code:"V-120", oms:"Omleidingsroute incl. bebording en verkeersbesluit", eh:"post", p:1450.00},
+  MOB:       {code:"P-900", oms:"Aan- en afvoer materieel", eh:"post", p:175.00},
+};
+const OPSLAG = {uitvoering:0.08, onvoorzien:0.05, btw:0.21}; // TEST: percentages nog vaststellen
+
+/* MVI-indicatie: voorbeeldfactoren, vervangen door DuboCalc/MKI-waarden of eigen meetdata. */
+const MVI = {kgCO2_nieuwM2:12, kgCO2_hergebruikM2:1.5, schouwKm:20, kgCO2_perKm:0.2};
+
+/* ================== 2. SJABLONEN (beslisboom) ================== */
+const verhardingOpt = [["tegel","Betontegels"],["klinker","Betonklinkers"],["asfalt","Asfalt"]];
+const SJABLONEN = {
+  inrit:{ic:"🚗",naam:"Inrit aanleggen",sub:"Particulier, oprit over trottoir",locatie:"trottoir",
+    vragen:[
+      {id:"lengte",l:"Diepte inrit (m), van rijbaan tot erfgrens",t:"num",d:3},
+      {id:"breedte",l:"Breedte inrit (m)",t:"num",d:3},
+      {id:"materiaal",l:"Verharding inrit",t:"sel",o:[["nieuw","Nieuwe inritelementen"],["hergebruik","Bestaande tegels hergebruiken"]],d:"nieuw"},
+    ],
+    posten:a=>{const A=a.opp,B=a.breedte;return[
+      ["KLIC",1],["OPBREKEN",A],["BAND_OPN",B],["BAND_INR",B],
+      ["ONTGRAVEN",A*0.25],["AFVOER",A*0.25],["FUNDERING",A*0.20],["ZAND",A*0.05],
+      a.materiaal==="hergebruik"?["STR_HER",A]:["STR_NIEUW",A],
+      a.materiaal==="hergebruik"?null:["LEV_INRIT",A],
+      a.materiaal==="hergebruik"?null:["AFV_OUD",A],["MOB",1]]},
+    dagen:a=>Math.max(1,Math.ceil(a.opp/15))},
+  trottoir:{ic:"🚶",naam:"Trottoir herstraten / vervangen",sub:"Verzakte of beschadigde stoep",locatie:"trottoir",
+    vragen:[
+      {id:"lengte",l:"Lengte (m)",t:"num",d:10},{id:"breedte",l:"Breedte (m)",t:"num",d:1.8},
+      {id:"actie",l:"Herstraten of vervangen?",t:"sel",o:[["herstraten","Herstraten (bestaand materiaal)"],["vervangen","Vervangen door nieuw"]],d:"herstraten"},
+      {id:"ophoging",l:"Gewenste ophoging (cm)",t:"num",d:5},
+      {id:"banden",l:"Banden herplaatsen?",t:"sel",o:[["nee","Nee"],["ja","Ja, over de hele lengte"]],d:"nee"},
+    ],
+    posten:a=>{const A=a.opp;return[
+      ["OPBREKEN",A],["ZAND",A*a.ophoging/100],
+      a.banden==="ja"?["BAND_HER",a.lengte]:null,
+      a.actie==="herstraten"?["STR_HER",A]:["STR_NIEUW",A],
+      a.actie==="vervangen"?["LEV_TEGEL",A]:null,a.actie==="vervangen"?["AFV_OUD",A]:null,["MOB",1]]},
+    dagen:a=>Math.max(1,Math.ceil(a.opp/40))},
+  rijweg:{ic:"🛣️",naam:"Rijweg herstraten / vervangen",sub:"Verzakking, spoorvorming, schade",locatie:"rijbaan",
+    vragen:[
+      {id:"lengte",l:"Lengte (m)",t:"num",d:10},{id:"breedte",l:"Breedte werkvak (m)",t:"num",d:3},
+      {id:"verharding",l:"Huidige verharding",t:"sel",o:verhardingOpt.slice(1),d:"klinker"},
+      {id:"actie",l:"Herstraten of vervangen?",t:"sel",o:[["herstraten","Herstraten (bestaand materiaal)"],["vervangen","Vervangen door nieuw"]],d:"herstraten",show:a=>a.verharding!=="asfalt"},
+      {id:"ophoging",l:"Gewenste ophoging (cm)",t:"num",d:5},
+    ],
+    posten:a=>{const A=a.opp;if(a.verharding==="asfalt")return[["OPBR_ASF",A],["FUNDERING",A*a.ophoging/100],["ASFALT",A],["MOB",1]];
+      return[["OPBREKEN",A],["ZAND",A*a.ophoging/100],
+      a.actie==="herstraten"?["STR_HER",A]:["STR_NIEUW",A],
+      a.actie==="vervangen"?["LEV_KLINK",A]:null,a.actie==="vervangen"?["AFV_OUD",A]:null,["MOB",1]]},
+    dagen:a=>Math.max(1,Math.ceil(a.opp/35))},
+  pv_aanleg:{ic:"🅿️",naam:"Parkeervak aanleggen",sub:"In berm of groenstrook",locatie:"rijbaan",
+    vragen:[
+      {id:"aantal",l:"Aantal parkeervakken",t:"num",d:1},
+      {id:"lengte",l:"Lengte per vak (m)",t:"num",d:5},{id:"breedte",l:"Breedte vak (m)",t:"num",d:2.5},
+      {id:"materiaal",l:"Verharding",t:"sel",o:[["nieuw","Nieuwe klinkers"],["hergebruik","Vrijgekomen materiaal hergebruiken"]],d:"nieuw"},
+      {id:"markering",l:"Vakmarkering aanbrengen?",t:"sel",o:[["ja","Ja"],["nee","Nee"]],d:"ja"},
+    ],
+    posten:a=>{const A=a.opp,n=a.aantal;return[
+      ["KLIC",1],["ONTGRAVEN",A*0.35],["AFVOER",A*0.35],["FUNDERING",A*0.25],["ZAND",A*0.05],
+      ["BAND_OPN",a.lengte*n],["BAND_INR",a.lengte*n],
+      a.materiaal==="hergebruik"?["STR_HER",A]:["STR_NIEUW",A],a.materiaal==="hergebruik"?null:["LEV_KLINK",A],
+      a.markering==="ja"?["MARK_VAK",n]:null,["MOB",1]]},
+    dagen:a=>Math.max(1,Math.ceil(a.opp/20)), oppFn:a=>a.aantal*a.lengte*a.breedte},
+  pv_verw:{ic:"🚫",naam:"Parkeervak verwijderen",sub:"Terug naar trottoir of groen",locatie:"rijbaan",
+    vragen:[
+      {id:"aantal",l:"Aantal parkeervakken",t:"num",d:1},
+      {id:"lengte",l:"Lengte per vak (m)",t:"num",d:5},{id:"breedte",l:"Breedte vak (m)",t:"num",d:2.5},
+      {id:"wordt",l:"Wordt na verwijderen",t:"sel",o:[["trottoir","Trottoir (herstraten met vrijgekomen materiaal)"],["groen","Groenstrook (zand/teelaarde)"]],d:"trottoir"},
+    ],
+    posten:a=>{const A=a.opp,n=a.aantal;return[
+      ["OPBREKEN",A],["MARK_VERW",n*(a.lengte*2+a.breedte)],["BAND_HER",a.lengte*n],
+      a.wordt==="trottoir"?["STR_HER",A]:["ZAND",A*0.3],["MOB",1]]},
+    dagen:a=>Math.max(1,Math.ceil(a.opp/25)), oppFn:a=>a.aantal*a.lengte*a.breedte},
+  markering:{ic:"〰️",naam:"Markering aanbrengen",sub:"Lijnen, vakken, symbolen",locatie:"rijbaan",
+    vragen:[
+      {id:"mlengte",l:"Lengte markering (m)",t:"num",d:50},
+      {id:"verwijderen",l:"Oude markering eerst verwijderen?",t:"sel",o:[["nee","Nee"],["ja","Ja"]],d:"nee"},
+    ],
+    posten:a=>[["MARK_NW",a.mlengte],a.verwijderen==="ja"?["MARK_VERW",a.mlengte]:null,["MOB",1]],
+    dagen:a=>1, geenOpp:true},
+};
+
+/* Verkeersmaatregel — VOORLOPIGE beslisregel, uit te werken met CROW 96a/96b.
+   2.0: wegtype en rijbaanbreedte automatisch uit NWB/BGT (PDOK). */
+const WEGTYPE=[["erf","Woonerf / 15 km"],["30","Woonstraat 30 km/u"],["50","Gebiedsontsluitingsweg 50 km/u"]];
+function verkeersmaatregel(sj,a){
+  if(sj.locatie==="trottoir") return {post:"VM_WVK",reden:"Werk op trottoir: werkvakafzetting volstaat."};
+  const rest=(a.rijbaan||0)-(sj.geenOpp?1:(a.breedte||0));
+  if(a.wegtype==="50") return rest>=3.25
+    ? {post:"VM_HALF",reden:`50 km-weg, resterende rijbaan ${fmt(rest)} m ≥ 3,25 m: halve rijbaanafzetting.`}
+    : {post:"VM_OML",reden:`50 km-weg, resterende rijbaan ${fmt(rest)} m < 3,25 m: omleiding nodig.`};
+  return rest>=2.75
+    ? {post:"VM_HALF",reden:`Resterende rijbaan ${fmt(rest)} m ≥ 2,75 m: halve rijbaanafzetting.`}
+    : {post:"VM_OML",reden:`Resterende rijbaan ${fmt(rest)} m < 2,75 m: straat afsluiten met omleiding.`};
+}
+
+/* ================== 3. KAART (PDOK) ================== */
+if(!window.L){ // kaartbibliotheek niet geladen (offline/geblokkeerd): tool blijft werken zonder kaart
+  window.L={map:()=>({setView(){return this},on(){},removeLayer(){},flyTo(){},getContainer:()=>({style:{}})}),
+    tileLayer:()=>({addTo(){return this}}),marker:()=>({addTo(){return this},bindPopup(){return this}}),
+    polygon:()=>({addTo(){return this},bindTooltip(){return this},openTooltip(){}}),CRS:{EPSG3857:{project:q=>q}}};
+  document.getElementById("map").innerHTML="<p style='padding:16px'>Kaart kon niet geladen worden. U kunt de maten handmatig invullen.</p>";
+}
+const map=L.map("map",{zoomControl:true}).setView([51.8436,4.6393],14); // Hendrik-Ido-Ambacht
+const brt=L.tileLayer("https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png",
+  {maxZoom:19,maxNativeZoom:19,attribution:"Kaart: <a href='https://www.pdok.nl'>PDOK</a> / Kadaster"}).addTo(map);
+const lucht=L.tileLayer("https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg",
+  {maxZoom:21,maxNativeZoom:21,attribution:"Luchtfoto: PDOK / Beeldmateriaal Nederland"});
+let opLucht=false;
+$("btnLaag").onclick=()=>{opLucht=!opLucht;if(opLucht){map.removeLayer(brt);lucht.addTo(map)}else{map.removeLayer(lucht);brt.addTo(map)}$("btnLaag").textContent=opLucht?"Kaart":"Luchtfoto"};
+let marker=null, tekenen=false, punten=[], vlak=null;
+$("btnTeken").onclick=()=>{tekenen=!tekenen;$("btnTeken").textContent=tekenen?"✔ Klaar met tekenen":"✏️ Vlak tekenen";map.getContainer().style.cursor=tekenen?"crosshair":"";if(!tekenen)render()};
+$("btnWis").onclick=()=>{punten=[];tekenVlak();render()};
+map.on("click",e=>{if(!tekenen)return;punten.push(e.latlng);tekenVlak()});
+function tekenVlak(){if(vlak)map.removeLayer(vlak);vlak=null;if(punten.length>=2)vlak=L.polygon(punten,{color:"#1f6f5c",weight:2,fillOpacity:.25}).addTo(map);
+  if(vlak&&punten.length>=3)vlak.bindTooltip(fmt(oppVlak())+" m²",{permanent:true,direction:"center"}).openTooltip();
+  if(state.step===3)updateOppInfo();}
+function oppVlak(){ // m², via Web Mercator met breedtecorrectie (nauwkeurig genoeg voor kleine vlakken)
+  if(punten.length<3)return 0;const k=Math.cos(punten[0].lat*Math.PI/180)**2;
+  const p=punten.map(q=>L.CRS.EPSG3857.project(q));let s=0;
+  for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];s+=a.x*b.y-b.x*a.y}return Math.abs(s)/2*k;}
+
+/* ================== 4. STAPPEN ================== */
+const state={step:0,user:null,adres:null,type:null,a:{}};
+function $(id){return document.getElementById(id)}
+function fmt(n,d=2){return Number(n).toLocaleString("nl-NL",{minimumFractionDigits:0,maximumFractionDigits:d})}
+function eur(n){return n.toLocaleString("nl-NL",{style:"currency",currency:"EUR"})}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function go(n){state.step=n;render()}
+
+function render(){
+  const P=$("panel");const s=state.step;
+  $("btnTeken").style.display=$("btnWis").style.display=(s===3&&!SJABLONEN[state.type]?.geenOpp)?"":"none";
+  if(s!==3&&tekenen){tekenen=false;$("btnTeken").textContent="✏️ Vlak tekenen";map.getContainer().style.cursor=""}
+  const bar=`<div class="steps noprint">${[0,1,2,3,4].map(i=>`<span class="${i<=s?"on":""}"></span>`).join("")}</div>`;
+  if(s===0) P.innerHTML=bar+`<h2>Inloggen</h2><p class="sub">Prototype: er wordt niets opgeslagen of verstuurd.</p>
+    <label>Naam<input id="iNaam" autocomplete="name"></label>
+    <label>Organisatie / particulier<select id="iOrg"><option>Gemeente Hendrik-Ido-Ambacht</option><option>Particulier</option><option>Woningcorporatie</option><option>Overig</option></select></label>
+    <label>E-mail<input id="iMail" type="email" autocomplete="email"></label>
+    <div class="row"><button class="b" id="bLogin">Inloggen en offerte aanvragen</button></div>
+    <div class="note warn">${PRIJS_GELDIG}</div>`;
+  if(s===1) P.innerHTML=bar+`<h2>Locatie van het werk</h2><p class="sub">Vul straat en huisnummer in; de kaart zoomt in.</p>
+    <label>Adres<input id="iAdres" placeholder="bijv. Weteringsingel 1, Hendrik-Ido-Ambacht" value="${state.adres?esc(state.adres.naam):""}"></label>
+    <div class="hits" id="hits"></div>
+    <div class="row"><button class="b sec" onclick="go(0)">Terug</button><button class="b" id="bNext1" ${state.adres?"":"disabled"} onclick="go(2)">Volgende</button></div>`;
+  if(s===2) P.innerHTML=bar+`<h2>Wat wilt u laten doen?</h2><p class="sub">${esc(state.adres.naam)}</p>`+
+    Object.entries(SJABLONEN).map(([k,v])=>`<button class="opt" data-t="${k}"><span class="ic">${v.ic}</span><span><b>${v.naam}</b><small>${v.sub}</small></span></button>`).join("")+
+    `<div class="row"><button class="b sec" onclick="go(1)">Terug</button></div>`;
+  if(s===3) renderVragen(P,bar);
+  if(s===4) renderOfferte(P,bar);
+  bind();
+}
+function bind(){
+  const s=state.step;
+  if(s===0) $("bLogin").onclick=()=>{const n=$("iNaam").value.trim();if(!n){$("iNaam").focus();return}
+    state.user={naam:n,org:$("iOrg").value,mail:$("iMail").value.trim()};$("who").textContent=`${n} · ${state.user.org}`;go(1)};
+  if(s===1){let t;$("iAdres").oninput=e=>{clearTimeout(t);t=setTimeout(()=>zoekAdres(e.target.value),300)};$("iAdres").focus()}
+  if(s===2) document.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{state.type=b.dataset.t;state.a={};punten=[];tekenVlak();go(3)});
+}
+async function zoekAdres(q){
+  const H=$("hits");if(q.trim().length<3){H.innerHTML="";return}
+  try{
+    const u="https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?rows=6&fq=type:adres&q="+encodeURIComponent(q);
+    const r=await (await fetch(u)).json();const docs=r.response?.docs||[];
+    H.innerHTML=docs.length?docs.map((d,i)=>`<button data-i="${i}">${esc(d.weergavenaam)}</button>`).join(""):`<div class="ro">Geen adres gevonden.</div>`;
+    H.querySelectorAll("button").forEach(b=>b.onclick=()=>{const d=docs[b.dataset.i];
+      const m=/POINT\(([\d.]+) ([\d.]+)\)/.exec(d.centroide_ll);const ll=[+m[2],+m[1]];
+      state.adres={naam:d.weergavenaam,ll};$("iAdres").value=d.weergavenaam;H.innerHTML="";
+      if(marker)map.removeLayer(marker);marker=L.marker(ll).addTo(map).bindPopup(esc(d.weergavenaam));
+      map.flyTo(ll,20,{duration:1.2});$("bNext1").disabled=false;});
+  }catch(e){H.innerHTML=`<div class="ro">Adres zoeken mislukt (geen verbinding met PDOK?).</div>`}
+}
+function renderVragen(P,bar){
+  const sj=SJABLONEN[state.type];const a=state.a;
+  sj.vragen.forEach(v=>{if(a[v.id]===undefined)a[v.id]=v.d});
+  if(sj.locatie==="rijbaan"){if(a.wegtype===undefined)a.wegtype="30";if(a.rijbaan===undefined)a.rijbaan=5.5}
+  const veld=v=>v.t==="num"?`<label>${v.l}<input type="number" step="0.1" min="0" data-id="${v.id}" value="${a[v.id]}"></label>`
+    :`<label>${v.l}<select data-id="${v.id}">${v.o.map(([k,l])=>`<option value="${k}" ${a[v.id]===k?"selected":""}>${l}</option>`).join("")}</select></label>`;
+  P.innerHTML=bar+`<h2>${sj.ic} ${sj.naam}</h2><p class="sub">${esc(state.adres.naam)}</p>`+
+    sj.vragen.filter(v=>!v.show||v.show(a)).map(veld).join("")+
+    (sj.geenOpp?"":`<div class="note" id="oppInfo"></div>`)+
+    (sj.locatie==="rijbaan"?`<h3 style="font-size:14px;margin:16px 0 0">Verkeer</h3>
+      <div class="grid2">${veld({id:"wegtype",l:"Type weg",t:"sel",o:WEGTYPE})}${veld({id:"rijbaan",l:"Totale rijbaanbreedte (m)",t:"num"})}</div>`:"")+
+    `<div class="row"><button class="b sec" onclick="go(2)">Terug</button><button class="b" onclick="go(4)">Bereken offerte</button></div>`;
+  P.querySelectorAll("[data-id]").forEach(el=>el.onchange=el.oninput=()=>{const id=el.dataset.id;
+    a[id]=el.type==="number"?Math.max(0,parseFloat(el.value)||0):el.value;
+    if(el.tagName==="SELECT")renderVragen(P,bar);else updateOppInfo()});
+  updateOppInfo();
+}
+function oppervlak(){const sj=SJABLONEN[state.type],a=state.a;
+  if(sj.geenOpp)return 0;if(punten.length>=3&&!sj.oppFn)return oppVlak();
+  return sj.oppFn?sj.oppFn(a):a.lengte*a.breedte}
+function updateOppInfo(){const el=$("oppInfo");if(!el)return;const sj=SJABLONEN[state.type];
+  const getekend=punten.length>=3&&!sj.oppFn;
+  el.innerHTML=getekend?`Oppervlak uit getekend vlak: <b>${fmt(oppVlak())} m²</b> (lengte×breedte wordt genegeerd).`
+    :`Oppervlak: <b>${fmt(oppervlak())} m²</b>${sj.oppFn?"":" · tip: teken het vlak op de kaart (✏️ rechtsboven) voor een nauwkeuriger oppervlak."}`}
+
+function renderOfferte(P,bar){
+  const sj=SJABLONEN[state.type];const a={...state.a,opp:oppervlak()};
+  const vm=verkeersmaatregel(sj,a);const dagen=sj.dagen(a);
+  const regels=sj.posten(a).filter(Boolean).filter(([,q])=>q>0).map(([k,q])=>({...PRIJZEN[k],q}));
+  const vp=PRIJZEN[vm.post];regels.push({...vp,q:vp.eh==="dag"?dagen:1});
+  regels.forEach(r=>{r.q=Math.round(r.q*100)/100;r.t=r.q*r.p});
+  const sub=regels.reduce((s,r)=>s+r.t,0),uk=sub*OPSLAG.uitvoering,on=sub*OPSLAG.onvoorzien,ex=sub+uk+on,btw=ex*OPSLAG.btw;
+  // MVI-indicatie
+  const her=regels.filter(r=>r.code===PRIJZEN.STR_HER.code).reduce((s,r)=>s+r.q,0);
+  const co2Bespaard=her*(MVI.kgCO2_nieuwM2-MVI.kgCO2_hergebruikM2)+MVI.schouwKm*MVI.kgCO2_perKm;
+  const nr="OFF-"+new Date().toISOString().slice(0,10).replace(/-/g,"")+"-"+String(Math.floor(Math.random()*900+100));
+  P.innerHTML=bar+`<h2>Offerte ${nr}</h2>
+    <p class="sub">${sj.ic} ${sj.naam} · ${esc(state.adres.naam)}<br>Aanvrager: ${esc(state.user.naam)} (${esc(state.user.org)}) · ${new Date().toLocaleDateString("nl-NL")}</p>
+    <div class="note warn"><b>Indicatieve offerte</b> — ${PRIJS_GELDIG}. Definitieve prijs na schouw en KLIC-melding.</div>
+    <div class="note"><b>Verkeersmaatregel:</b> ${vm.reden} Geschatte duur: ${dagen} werkdag${dagen>1?"en":""}.</div>
+    <table><tr><th>Post</th><th class="n">Hoev.</th><th class="n">Prijs</th><th class="n">Totaal</th></tr>
+    ${regels.map(r=>`<tr><td>${r.oms}<br><span class="code">${r.code}</span></td><td class="n">${fmt(r.q)} ${r.eh}</td><td class="n">${eur(r.p)}</td><td class="n">${eur(r.t)}</td></tr>`).join("")}
+    <tr><td colspan="3">Subtotaal directe kosten</td><td class="n">${eur(sub)}</td></tr>
+    <tr><td colspan="3">Uitvoeringskosten (${OPSLAG.uitvoering*100}%)</td><td class="n">${eur(uk)}</td></tr>
+    <tr><td colspan="3">Onvoorzien (${OPSLAG.onvoorzien*100}%)</td><td class="n">${eur(on)}</td></tr>
+    <tr class="tot"><td colspan="3">Totaal excl. btw</td><td class="n">${eur(ex)}</td></tr>
+    <tr><td colspan="3">Btw ${OPSLAG.btw*100}%</td><td class="n">${eur(btw)}</td></tr>
+    <tr class="tot"><td colspan="3">Totaal incl. btw</td><td class="n">${eur(ex+btw)}</td></tr></table>
+    <h3 style="font-size:14px;margin:18px 0 0">MVI-indicatie</h3>
+    <div class="mvi"><div><b>${fmt(her,1)} m²</b><span>materiaal hergebruikt</span></div>
+      <div><b>±${fmt(co2Bespaard,0)} kg</b><span>CO₂ vermeden*</span></div><div><b>1</b><span>schouwrit bespaard</span></div></div>
+    <p class="ro">* Indicatie met voorbeeldfactoren; te vervangen door DuboCalc/MKI-waarden.</p>
+    <div class="row"><button class="b sec" onclick="go(3)">Aanpassen</button><button class="b sec" onclick="window.print()">Print / PDF</button>
+      <button class="b" onclick="alert('Prototype: hier wordt straks de offerte gemaild en opgeslagen (bijv. via Make → OneDrive + e-mail).')">Offerte aanvragen</button>
+      <button class="b sec" onclick="state.type=null;punten=[];tekenVlak();go(2)">Nieuwe aanvraag</button></div>`;
+}
+render();
+</script>
+</body>
+</html>
